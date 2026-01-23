@@ -1,5 +1,4 @@
 import type { Array } from '@jax-js/jax';
-import type { Integrator } from '../integrators/types';
 
 export interface HMCState {
   position: Array;
@@ -9,10 +8,10 @@ export interface HMCState {
 
 export interface HMCInfo {
   momentum: Array;
-  acceptanceRate: number;
-  isAccepted: boolean;
-  isDivergent: boolean;
-  energy: number;
+  acceptanceProb: Array;
+  isAccepted: Array;
+  isDivergent: Array;
+  energy: Array;
   numIntegrationSteps: number;
 }
 
@@ -21,5 +20,4 @@ export interface HMCConfig {
   numIntegrationSteps: number;
   inverseMassMatrix: Array;
   divergenceThreshold: number;
-  integrator: Integrator;
 }
