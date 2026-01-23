@@ -37,10 +37,12 @@ describe('Gaussian Euclidean Metric', () => {
 
     const momentum = np.array([2.0, 3.0]);
     const grad = metric.kineticEnergyGrad(momentum);
+    const expected = np.array([2.0, 6.0]);
 
-    expect(grad).toBeAllclose([2.0, 6.0]);
+    expect(grad).toBeAllclose(expected);
 
     grad.dispose();
+    expected.dispose();
     inverseMassMatrix.dispose();
   });
 });
