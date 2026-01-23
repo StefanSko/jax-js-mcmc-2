@@ -6,6 +6,7 @@ export function createVelocityVerlet(
   kineticEnergyFn: (momentum: Array) => Array
 ): Integrator {
   const kineticEnergyGradFn = grad(kineticEnergyFn);
+  const logdensityGradFn = grad(logdensityFn);
 
   return function velocityVerletStep(
     state: IntegratorState,
@@ -21,7 +22,7 @@ export function createVelocityVerlet(
     const newPosition = state.position.add(kineticGrad.mul(stepSize));
 
     const newLogdensity = logdensityFn(newPosition.ref);
-    const newLogdensityGrad = grad(logdensityFn)(newPosition.ref);
+    const newLogdensityGrad = logdensityGradFn(newPosition.ref);
 
     const newMomentum = momentumHalf.add(newLogdensityGrad.ref.mul(halfStep));
 
