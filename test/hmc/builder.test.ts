@@ -68,6 +68,32 @@ describe('HMC Builder', () => {
     info.energy.dispose();
   });
 
+  it('valueAndGrad path runs without error', () => {
+    const sampler = HMC(logdensityFn)
+      .stepSize(0.1)
+      .numIntegrationSteps(5)
+      .inverseMassMatrix(np.array([1.0]))
+      .valueAndGrad({ jit: true })
+      .build();
+
+    const state = sampler.init(np.array([0.0]));
+    const key = random.key(7);
+    const [newState, info] = sampler.step(key, state);
+
+    expect(newState.position).toBeDefined();
+    expect(newState.logdensity).toBeDefined();
+    expect(newState.logdensityGrad).toBeDefined();
+
+    newState.position.dispose();
+    newState.logdensity.dispose();
+    newState.logdensityGrad.dispose();
+    info.momentum.dispose();
+    info.acceptanceProb.dispose();
+    info.isAccepted.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+  });
+
   it('throws if required config is missing', () => {
     expect(() => HMC(logdensityFn).build()).toThrow('stepSize required');
     expect(() => HMC(logdensityFn).stepSize(0.1).build()).toThrow('numIntegrationSteps required');

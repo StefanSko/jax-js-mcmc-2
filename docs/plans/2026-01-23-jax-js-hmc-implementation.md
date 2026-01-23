@@ -1602,6 +1602,8 @@ interface PartialConfig {
   numIntegrationSteps?: number;
   inverseMassMatrix?: Array;
   divergenceThreshold?: number;
+  useValueAndGrad?: boolean;
+  jitValueAndGrad?: boolean;
 }
 
 export class HMCBuilder {
@@ -1630,10 +1632,27 @@ export class HMCBuilder {
     return new HMCBuilder(this.logdensityFn, { ...this.config, divergenceThreshold: value });
   }
 
+  valueAndGrad(options: { jit?: boolean } = {}): HMCBuilder {
+    return new HMCBuilder(this.logdensityFn, {
+      ...this.config,
+      useValueAndGrad: true,
+      jitValueAndGrad: options.jit ?? false,
+    });
+  }
+
   build(): HMCSampler {
     const fullConfig = this.validateAndFillDefaults();
     const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix.ref);
-    const integrator = createVelocityVerlet(this.logdensityFn, metric.kineticEnergy);
+    const logdensityAndGrad = fullConfig.useValueAndGrad
+      ? fullConfig.jitValueAndGrad
+        ? jit(valueAndGrad(this.logdensityFn))
+        : valueAndGrad(this.logdensityFn)
+      : null;
+    const integrator = createVelocityVerlet(
+      this.logdensityFn,
+      metric.kineticEnergy,
+      logdensityAndGrad ?? undefined
+    );
     const step = createHMCKernel(fullConfig, this.logdensityFn, metric, integrator);
 
     const init = (position: Array): HMCState => {
@@ -1663,6 +1682,8 @@ export class HMCBuilder {
       numIntegrationSteps: this.config.numIntegrationSteps,
       inverseMassMatrix: this.config.inverseMassMatrix,
       divergenceThreshold: this.config.divergenceThreshold ?? 1000,
+      useValueAndGrad: this.config.useValueAndGrad ?? false,
+      jitValueAndGrad: this.config.jitValueAndGrad ?? false,
     };
   }
 }

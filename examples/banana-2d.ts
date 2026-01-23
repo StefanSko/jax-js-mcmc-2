@@ -2,10 +2,12 @@ import { numpy as np, random } from '@jax-js/jax';
 import { HMC } from '../src';
 
 const b = 0.1;
+const maskX = np.array([1.0, 0.0]);
+const maskY = np.array([0.0, 1.0]);
 
 const logdensityFn = (q: np.Array): np.Array => {
-  const x = np.take(q.ref, 0);
-  const y = np.take(q.ref, 1);
+  const x = q.ref.mul(maskX.ref).sum();
+  const y = q.ref.mul(maskY.ref).sum();
 
   const x2 = x.ref.mul(x);
   const yCentered = y.ref.sub(x2.ref.mul(b));
@@ -20,8 +22,9 @@ const logdensityFn = (q: np.Array): np.Array => {
 
 const sampler = HMC(logdensityFn)
   .stepSize(0.05)
-  .numIntegrationSteps(20)
+  .numIntegrationSteps(1)
   .inverseMassMatrix(np.array([1.0, 1.0]))
+  .valueAndGrad({ jit: true })
   .build();
 
 let state = sampler.init(np.array([0.0, 0.0]));
@@ -60,3 +63,5 @@ console.log('Banana mean (approx):', [mean0.toFixed(3), mean1.toFixed(3)]);
 state.position.dispose();
 state.logdensity.dispose();
 state.logdensityGrad.dispose();
+maskX.dispose();
+maskY.dispose();

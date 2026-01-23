@@ -1,4 +1,4 @@
-import { grad, type Array } from '@jax-js/jax';
+import { grad, jit, valueAndGrad as jaxValueAndGrad, type Array } from '@jax-js/jax';
 import type { HMCState, HMCInfo, HMCConfig } from './types';
 import { createHMCKernel } from './kernel';
 import { createGaussianEuclidean } from '../metrics/gaussian-euclidean';
@@ -14,6 +14,8 @@ interface PartialConfig {
   numIntegrationSteps?: number;
   inverseMassMatrix?: Array;
   divergenceThreshold?: number;
+  useValueAndGrad?: boolean;
+  jitValueAndGrad?: boolean;
 }
 
 export class HMCBuilder {
@@ -51,13 +53,40 @@ export class HMCBuilder {
     });
   }
 
+  valueAndGrad(options: { jit?: boolean } = {}): HMCBuilder {
+    return new HMCBuilder(this.logdensityFn, {
+      ...this.config,
+      useValueAndGrad: true,
+      jitValueAndGrad: options.jit ?? false,
+    });
+  }
+
   build(): HMCSampler {
     const fullConfig = this.validateAndFillDefaults();
     const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix.ref);
-    const integrator = createVelocityVerlet(this.logdensityFn, metric.kineticEnergy);
+    const logdensityAndGrad = fullConfig.useValueAndGrad
+      ? fullConfig.jitValueAndGrad
+        ? jit(jaxValueAndGrad(this.logdensityFn))
+        : jaxValueAndGrad(this.logdensityFn)
+      : null;
+    const integrator = createVelocityVerlet(
+      this.logdensityFn,
+      metric.kineticEnergy,
+      logdensityAndGrad ?? undefined
+    );
     const step = createHMCKernel(fullConfig, this.logdensityFn, metric, integrator);
 
     const init = (position: Array): HMCState => {
+      if (logdensityAndGrad) {
+        const positionForState = position.ref;
+        const [logdensity, logdensityGrad] = logdensityAndGrad(position);
+        return {
+          position: positionForState,
+          logdensity,
+          logdensityGrad,
+        };
+      }
+
       return {
         position: position.ref,
         logdensity: this.logdensityFn(position.ref),
@@ -68,7 +97,10 @@ export class HMCBuilder {
     return { init, step };
   }
 
-  private validateAndFillDefaults(): HMCConfig {
+  private validateAndFillDefaults(): HMCConfig & {
+    useValueAndGrad: boolean;
+    jitValueAndGrad: boolean;
+  } {
     if (this.config.stepSize === undefined) {
       throw new Error('stepSize required');
     }
@@ -84,6 +116,8 @@ export class HMCBuilder {
       numIntegrationSteps: this.config.numIntegrationSteps,
       inverseMassMatrix: this.config.inverseMassMatrix,
       divergenceThreshold: this.config.divergenceThreshold ?? 1000,
+      useValueAndGrad: this.config.useValueAndGrad ?? false,
+      jitValueAndGrad: this.config.jitValueAndGrad ?? false,
     };
   }
 }
