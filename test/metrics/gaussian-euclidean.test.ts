@@ -9,7 +9,7 @@ describe('Gaussian Euclidean Metric', () => {
 
     const key = random.key(42);
     const position = np.array([0.0, 0.0, 0.0]);
-    const momentum = metric.sampleMomentum(key, position);
+    const momentum = metric.sampleMomentum(key, position.ref);
 
     expect(momentum.shape).toEqual([3]);
 

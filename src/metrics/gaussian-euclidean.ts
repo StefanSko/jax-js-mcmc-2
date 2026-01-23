@@ -15,6 +15,7 @@ export function createGaussianEuclidean(inverseMassMatrix: Array): Metric {
   const sampleMomentum = (key: Array, position: Array): Array => {
     const z = random.normal(key, position.shape);
     const momentum = z.mul(massMatrixSqrt.ref);
+    position.dispose();
     return momentum;
   };
 
