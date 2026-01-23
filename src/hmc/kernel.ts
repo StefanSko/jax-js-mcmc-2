@@ -64,8 +64,7 @@ export function createHMCKernel(
       state.logdensityGrad.ref
     );
 
-    // Dispose all consumed arrays
-    // Note: initialEnergy was consumed by sub(), deltaEnergy was consumed by neg() and greater()
+    // Dispose input state arrays (ownership transferred to newState via np.where)
     state.position.dispose();
     state.logdensity.dispose();
     state.logdensityGrad.dispose();

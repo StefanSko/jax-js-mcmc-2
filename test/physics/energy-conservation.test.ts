@@ -20,9 +20,7 @@ describe('Energy Conservation', () => {
     // Need refs since we're using these values without consuming the state
     const potential = state.logdensity.ref.neg();
     const kinetic = kineticEnergyFn(state.momentum.ref);
-    const energy = potential.add(kinetic);
-    const result = energy.js() as number;
-    return result;
+    return potential.add(kinetic).js() as number;
   };
 
   it('conserves energy over many steps', () => {

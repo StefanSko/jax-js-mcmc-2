@@ -10,8 +10,7 @@ export function createGaussianEuclidean(inverseMassMatrix: Array): Metric {
   const kineticEnergy = (momentum: Array): Array => {
     // K = 0.5 * p^T * M^{-1} * p = 0.5 * sum(p^2 * M^{-1})
     const scaled = momentum.ref.mul(momentum).mul(inverseMassMatrix.ref);
-    const result = np.sum(scaled).mul(0.5);
-    return result;
+    return np.sum(scaled).mul(0.5);
   };
 
   const kineticEnergyGrad = grad(kineticEnergy);
@@ -21,8 +20,7 @@ export function createGaussianEuclidean(inverseMassMatrix: Array): Metric {
     const shape = position.shape;
     position.dispose(); // Consume position - we only needed its shape
     const z = random.normal(key, shape);
-    const momentum = z.mul(massMatrixSqrt.ref);
-    return momentum;
+    return z.mul(massMatrixSqrt.ref);
   };
 
   return {
