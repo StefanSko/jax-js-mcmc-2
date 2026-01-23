@@ -19,7 +19,8 @@ export function createHMCKernel(
       Array
     ];
 
-    const momentum = metric.sampleMomentum(keyMomentum, state.position.ref);
+    const positionForMomentum = state.position.ref;
+    const momentum = metric.sampleMomentum(keyMomentum, positionForMomentum);
 
     let integState: IntegratorState = {
       position: state.position.ref,
