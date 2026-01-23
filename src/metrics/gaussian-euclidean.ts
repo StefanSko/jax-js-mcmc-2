@@ -18,7 +18,9 @@ export function createGaussianEuclidean(inverseMassMatrix: Array): Metric {
 
   const sampleMomentum = (key: Array, position: Array): Array => {
     // p ~ N(0, M) => p = M^{1/2} * z where z ~ N(0, I)
-    const z = random.normal(key, position.shape);
+    const shape = position.shape;
+    position.dispose(); // Consume position - we only needed its shape
+    const z = random.normal(key, shape);
     const momentum = z.mul(massMatrixSqrt.ref);
     return momentum;
   };

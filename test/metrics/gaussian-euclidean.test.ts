@@ -13,8 +13,8 @@ describe('Gaussian Euclidean Metric', () => {
 
     expect(momentum.shape).toEqual([3]);
 
+    // Note: position was consumed by sampleMomentum
     momentum.dispose();
-    position.dispose();
     inverseMassMatrix.dispose();
   });
 
