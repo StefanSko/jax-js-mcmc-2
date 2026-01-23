@@ -78,7 +78,9 @@ describe('Integrator Memory Management', () => {
     const newState = integrator(state, 0.01);
 
     // Accessing consumed array should throw
-    expect(() => oldPosition.js()).toThrowError(ReferenceError);
+    expect(() => {
+      void oldPosition.js();
+    }).toThrowError(ReferenceError);
 
     // Cleanup
     newState.position.dispose();
