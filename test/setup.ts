@@ -10,11 +10,27 @@ expect.extend({
     const { isNot } = this;
     const actualArray = np.array(actual);
     const expectedArray = np.array(expected);
+
+    // Both .js() and allclose consume arrays via dataSync().
+    // We need extra refs to survive both operations AND preserve the original.
+    // Add 2 refs: one for .js(), one for allclose (original stays at refCount 1)
+    void actualArray.ref;  // +1 for .js()
+    void actualArray.ref;  // +1 for allclose
+    void expectedArray.ref;  // +1 for .js()
+    void expectedArray.ref;  // +1 for allclose
+
+    // Get JS values (consumes 1 ref each)
+    const actualJs = actualArray.js() as unknown;
+    const expectedJs = expectedArray.js() as unknown;
+
+    // allclose consumes 1 ref each
+    const pass = np.allclose(actualArray, expectedArray, options);
+
     return {
-      pass: np.allclose(actualArray.ref, expectedArray.ref, options),
+      pass,
       message: (): string => `expected array to be${isNot ? ' not' : ''} allclose`,
-      actual: actualArray.js() as unknown,
-      expected: expectedArray.js() as unknown,
+      actual: actualJs,
+      expected: expectedJs,
     };
   },
 });
