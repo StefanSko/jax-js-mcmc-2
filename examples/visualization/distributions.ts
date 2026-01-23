@@ -26,8 +26,9 @@ export function createGaussian2D(): Distribution {
     name: '2D Gaussian',
     logdensity: (position: Array): Array => {
       // -0.5 * x^T * Precision * x
-      const x = position.at(0);
-      const y = position.at(1);
+      // Use np.take to extract elements from 1D position array
+      const x = np.take(position.ref, 0);
+      const y = np.take(position, 1);
 
       // Quadratic form: precisionDiag*(x^2 + y^2) + 2*precisionOffDiag*x*y
       const quadForm = x.ref.mul(x.ref).mul(precisionDiag)
@@ -52,12 +53,12 @@ export function createBanana(): Distribution {
   return {
     name: 'Banana',
     logdensity: (position: Array): Array => {
-      const x = position.at(0);
-      const y = position.at(1);
+      const x = np.take(position.ref, 0);
+      const y = np.take(position, 1);
 
       // Rosenbrock: -(a-x)^2 - b*(y - x^2)^2
       // Scaled down for better sampling
-      const term1 = np.sub(a, x.ref).pow(2);
+      const term1 = np.subtract(a, x.ref).pow(2);
       const term2 = y.sub(x.pow(2)).pow(2).mul(b);
 
       return term1.add(term2).mul(-0.05);  // Scale factor for visualization
@@ -75,8 +76,8 @@ export function createFunnel(): Distribution {
   return {
     name: 'Funnel',
     logdensity: (position: Array): Array => {
-      const v = position.at(0);  // Log-variance
-      const x = position.at(1);  // Conditional normal
+      const v = np.take(position.ref, 0);  // Log-variance
+      const x = np.take(position, 1);  // Conditional normal
 
       // p(v) = N(0, 3^2)
       // p(x|v) = N(0, exp(v))
@@ -84,7 +85,7 @@ export function createFunnel(): Distribution {
 
       const logPv = v.ref.pow(2).mul(-1 / 18);  // -v^2 / (2*9)
       const logPxGivenV = v.ref.mul(-0.5)  // -v/2 (normalization)
-        .sub(x.pow(2).div(v.exp().mul(2)));  // -x^2 / (2*exp(v))
+        .sub(x.pow(2).div(np.exp(v).mul(2)));  // -x^2 / (2*exp(v))
 
       return logPv.add(logPxGivenV);
     },
