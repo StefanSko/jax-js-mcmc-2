@@ -50,9 +50,9 @@ const samplesY: number[] = [];
 let acceptedCount = 0;
 let divergentCount = 0;
 
-// Note: Using small iteration counts due to memory constraints with 2D autodiff
-const numWarmup = 20;
-const numSamples = 50;
+// Reasonable iteration counts - grad() caching fix enables larger runs
+const numWarmup = 200;
+const numSamples = 500;
 
 console.log(`Warmup: ${numWarmup} iterations`);
 console.log(`Sampling: ${numSamples} iterations\n`);

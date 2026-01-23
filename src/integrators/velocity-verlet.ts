@@ -5,7 +5,9 @@ export function createVelocityVerlet(
   logdensityFn: (position: Array) => Array,
   kineticEnergyFn: (momentum: Array) => Array
 ): Integrator {
+  // IMPORTANT: Cache gradient functions - calling grad() repeatedly leaks memory!
   const kineticEnergyGradFn = grad(kineticEnergyFn);
+  const logdensityGradFn = grad(logdensityFn);
 
   return function velocityVerletStep(
     state: IntegratorState,
@@ -27,7 +29,7 @@ export function createVelocityVerlet(
 
     // Compute new logdensity and gradient at new position
     const newLogdensity = logdensityFn(newPosition.ref);
-    const newLogdensityGrad = grad(logdensityFn)(newPosition.ref);
+    const newLogdensityGrad = logdensityGradFn(newPosition.ref);
 
     // Half step momentum: p += (ε/2) * ∇log π(q_new)
     // momentumHalf is consumed by add, newLogdensityGrad.ref keeps it alive
