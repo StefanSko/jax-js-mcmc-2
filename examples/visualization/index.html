@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HMC Visualization - JAX-JS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    .container { display: flex; height: 100vh; }
+
+    /* Left: Canvas area */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-width: 0;
+    }
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 400px;
+    }
+    #hmc-canvas {
+      width: 100%;
+      height: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* Right: Control panel */
+    .controls {
+      width: 280px;
+      background: #0f3460;
+      padding: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .control-group { margin-bottom: 20px; }
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .control-group input[type="range"] { width: 100%; }
+    .control-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    .value-display {
+      text-align: right;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-secondary { background: #533483; color: white; }
+
+    /* Stats panel */
+    .stats {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .stats-row:last-child { margin-bottom: 0; }
+
+    /* Loading overlay */
+    .loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .loading-text { font-size: 16px; }
+    .loading-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #333;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-top: 12px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Title */
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="canvas-area">
+      <h1>HMC Visualization</h1>
+      <p class="subtitle">
+        Hamiltonian Monte Carlo sampling with JAX-JS
+      </p>
+
+      <div class="canvas-wrapper">
+        <canvas id="hmc-canvas"></canvas>
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          <span class="loading-text">Initializing JAX-JS...</span>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #4ade80;"></div>
+          <span>Accepted</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #f87171;"></div>
+          <span>Rejected</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #facc15;"></div>
+          <span>Divergent</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #60a5fa;"></div>
+          <span>Current</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <h2>Parameters</h2>
+
+      <div class="control-group">
+        <label for="distribution">Distribution</label>
+        <select id="distribution">
+          <option value="gaussian">2D Gaussian</option>
+          <option value="banana">Banana</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="step-size">Step Size (ε)</label>
+        <input type="range" id="step-size" min="0.01" max="0.5" step="0.01" value="0.15">
+        <div class="value-display" id="step-size-value">0.15</div>
+      </div>
+
+      <div class="control-group">
+        <label for="num-steps">Integration Steps (L)</label>
+        <input type="range" id="num-steps" min="1" max="30" step="1" value="10">
+        <div class="value-display" id="num-steps-value">10</div>
+      </div>
+
+      <div class="control-group">
+        <label for="speed">Animation Speed</label>
+        <input type="range" id="speed" min="100" max="1500" step="100" value="300">
+        <div class="value-display" id="speed-value">300ms</div>
+      </div>
+
+      <div class="control-group">
+        <div class="btn-group">
+          <button class="btn btn-primary" id="play-pause">Play</button>
+          <button class="btn btn-secondary" id="step">Step</button>
+          <button class="btn btn-secondary" id="reset">Reset</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Statistics</h3>
+        <div class="stats">
+          <div class="stats-row">
+            <span>Samples:</span>
+            <span id="stat-samples">0</span>
+          </div>
+          <div class="stats-row">
+            <span>Acceptance:</span>
+            <span id="stat-acceptance">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Divergent:</span>
+            <span id="stat-divergent">0</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean X:</span>
+            <span id="stat-mean-x">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean Y:</span>
+            <span id="stat-mean-y">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Current Step</h3>
+        <div class="stats">
+          <div class="stats-row">
+            <span>Accept Prob:</span>
+            <span id="info-accept-prob">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Energy:</span>
+            <span id="info-energy">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Status:</span>
+            <span id="info-status">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./hmc-viz.ts"></script>
+</body>
+</html>
