@@ -45,6 +45,18 @@ expect(newState.position.refCount).toBe(1);  // fresh
 expect(() => oldState.position.js()).toThrowError(ReferenceError);
 ```
 
+**Critical: `dataSync()` disposes arrays.** Both `np.allclose()` and `.js()` call `dataSync()` internally, which disposes the array after reading its data. If you need to use an array after calling these methods, add extra refs first:
+```typescript
+// WRONG - x is consumed by allclose
+const pass = np.allclose(x, expected);
+x.dispose();  // Error: already disposed
+
+// CORRECT - add ref before consuming operations
+void x.ref;  // +1 ref to survive allclose
+const pass = np.allclose(x, expected);  // consumes 1 ref
+x.dispose();  // now safe
+```
+
 ## Reference Repositories
 
 **JAX-JS** (the runtime): `/tmp/jax-js`
