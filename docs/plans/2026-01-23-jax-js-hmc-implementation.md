@@ -1604,6 +1604,7 @@ interface PartialConfig {
   divergenceThreshold?: number;
   useValueAndGrad?: boolean;
   jitValueAndGrad?: boolean;
+  jitStep?: boolean;
 }
 
 export class HMCBuilder {
@@ -1640,6 +1641,13 @@ export class HMCBuilder {
     });
   }
 
+  jitStep(value = true): HMCBuilder {
+    return new HMCBuilder(this.logdensityFn, {
+      ...this.config,
+      jitStep: value,
+    });
+  }
+
   build(): HMCSampler {
     const fullConfig = this.validateAndFillDefaults();
     const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix.ref);
@@ -1653,7 +1661,30 @@ export class HMCBuilder {
       metric.kineticEnergy,
       logdensityAndGrad ?? undefined
     );
-    const step = createHMCKernel(fullConfig, this.logdensityFn, metric, integrator);
+    const stepCore = createHMCKernel(fullConfig, this.logdensityFn, metric, integrator);
+    const stepArrays = (key: Array, state: HMCState): [HMCState, Omit<HMCInfo, 'numIntegrationSteps'>] => {
+      const [newState, info] = stepCore(key, state);
+      return [
+        newState,
+        {
+          momentum: info.momentum,
+          acceptanceProb: info.acceptanceProb,
+          isAccepted: info.isAccepted,
+          isDivergent: info.isDivergent,
+          energy: info.energy,
+        },
+      ];
+    };
+    const stepJit = fullConfig.jitStep ? jit(stepArrays) : null;
+    const step = fullConfig.jitStep
+      ? (key: Array, state: HMCState): [HMCState, HMCInfo] => {
+          const [newState, info] = stepJit!(key, state);
+          return [
+            newState,
+            { ...info, numIntegrationSteps: fullConfig.numIntegrationSteps },
+          ];
+        }
+      : stepCore;
 
     const init = (position: Array): HMCState => {
       return {
@@ -1684,6 +1715,7 @@ export class HMCBuilder {
       divergenceThreshold: this.config.divergenceThreshold ?? 1000,
       useValueAndGrad: this.config.useValueAndGrad ?? false,
       jitValueAndGrad: this.config.jitValueAndGrad ?? false,
+      jitStep: this.config.jitStep ?? false,
     };
   }
 }
