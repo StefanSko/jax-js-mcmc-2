@@ -12,8 +12,15 @@ export interface Distribution {
   initialPosition: [number, number];
 }
 
-const index0 = np.array(0, { dtype: np.int32 });
-const index1 = np.array(1, { dtype: np.int32 });
+const axisX = np.array([1, 0]);
+const axisY = np.array([0, 1]);
+
+function splitPosition(position: Array): [Array, Array] {
+  const positionForY = position.ref;
+  const x = np.sum(position.mul(axisX.ref));
+  const y = np.sum(positionForY.mul(axisY.ref));
+  return [x, y];
+}
 
 /**
  * Standard 2D Gaussian with mild correlation.
@@ -29,9 +36,7 @@ export function createGaussian2D(): Distribution {
     name: '2D Gaussian',
     logdensity: (position: Array): Array => {
       // -0.5 * x^T * Precision * x
-      // Use np.take to extract elements from 1D position array
-      const x = np.take(position.ref, index0.ref);
-      const y = np.take(position, index1.ref);
+      const [x, y] = splitPosition(position);
 
       // Quadratic form: precisionDiag*(x^2 + y^2) + 2*precisionOffDiag*x*y
       const quadForm = np.power(x.ref, 2).mul(precisionDiag)
@@ -56,8 +61,7 @@ export function createBanana(): Distribution {
   return {
     name: 'Banana',
     logdensity: (position: Array): Array => {
-      const x = np.take(position.ref, index0.ref);
-      const y = np.take(position, index1.ref);
+      const [x, y] = splitPosition(position);
 
       // Rosenbrock: -(a-x)^2 - b*(y - x^2)^2
       // Scaled down for better sampling
@@ -79,8 +83,7 @@ export function createFunnel(): Distribution {
   return {
     name: 'Funnel',
     logdensity: (position: Array): Array => {
-      const v = np.take(position.ref, index0.ref);  // Log-variance
-      const x = np.take(position, index1.ref);  // Conditional normal
+      const [v, x] = splitPosition(position);  // Log-variance, conditional normal
 
       // p(v) = N(0, 3^2)
       // p(x|v) = N(0, exp(v))
