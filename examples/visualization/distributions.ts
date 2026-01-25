@@ -12,6 +12,9 @@ export interface Distribution {
   initialPosition: [number, number];
 }
 
+const index0 = np.array(0, { dtype: np.int32 });
+const index1 = np.array(1, { dtype: np.int32 });
+
 /**
  * Standard 2D Gaussian with mild correlation.
  * Simple distribution for demonstrating basic HMC.
@@ -27,12 +30,12 @@ export function createGaussian2D(): Distribution {
     logdensity: (position: Array): Array => {
       // -0.5 * x^T * Precision * x
       // Use np.take to extract elements from 1D position array
-      const x = np.take(position.ref, 0);
-      const y = np.take(position, 1);
+      const x = np.take(position.ref, index0.ref);
+      const y = np.take(position, index1.ref);
 
       // Quadratic form: precisionDiag*(x^2 + y^2) + 2*precisionOffDiag*x*y
-      const quadForm = x.ref.mul(x.ref).mul(precisionDiag)
-        .add(y.ref.mul(y.ref).mul(precisionDiag))
+      const quadForm = np.power(x.ref, 2).mul(precisionDiag)
+        .add(np.power(y.ref, 2).mul(precisionDiag))
         .add(x.mul(y).mul(2 * precisionOffDiag));
 
       return quadForm.mul(-0.5);
@@ -53,13 +56,13 @@ export function createBanana(): Distribution {
   return {
     name: 'Banana',
     logdensity: (position: Array): Array => {
-      const x = np.take(position.ref, 0);
-      const y = np.take(position, 1);
+      const x = np.take(position.ref, index0.ref);
+      const y = np.take(position, index1.ref);
 
       // Rosenbrock: -(a-x)^2 - b*(y - x^2)^2
       // Scaled down for better sampling
-      const term1 = np.subtract(a, x.ref).pow(2);
-      const term2 = y.sub(x.pow(2)).pow(2).mul(b);
+      const term1 = np.power(np.subtract(a, x.ref), 2);
+      const term2 = np.power(y.sub(np.power(x, 2)), 2).mul(b);
 
       return term1.add(term2).mul(-0.05);  // Scale factor for visualization
     },
@@ -76,16 +79,16 @@ export function createFunnel(): Distribution {
   return {
     name: 'Funnel',
     logdensity: (position: Array): Array => {
-      const v = np.take(position.ref, 0);  // Log-variance
-      const x = np.take(position, 1);  // Conditional normal
+      const v = np.take(position.ref, index0.ref);  // Log-variance
+      const x = np.take(position, index1.ref);  // Conditional normal
 
       // p(v) = N(0, 3^2)
       // p(x|v) = N(0, exp(v))
       // log p(v,x) = -v^2/(2*9) - v/2 - x^2/(2*exp(v))
 
-      const logPv = v.ref.pow(2).mul(-1 / 18);  // -v^2 / (2*9)
+      const logPv = np.power(v.ref, 2).mul(-1 / 18);  // -v^2 / (2*9)
       const logPxGivenV = v.ref.mul(-0.5)  // -v/2 (normalization)
-        .sub(x.pow(2).div(np.exp(v).mul(2)));  // -x^2 / (2*exp(v))
+        .sub(np.power(x, 2).div(np.exp(v).mul(2)));  // -x^2 / (2*exp(v))
 
       return logPv.add(logPxGivenV);
     },
