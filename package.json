@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "ci": "npm run typecheck && npm run lint && npm run test",
     "build": "tsc",
-    "viz": "vite examples/visualization"
+    "viz": "vite examples/visualization --config vite.config.ts",
+    "viz:debug": "CONSOLE_BRIDGE=1 vite examples/visualization --config vite.config.ts"
   },
   "dependencies": {
     "@jax-js/jax": "^0.1.0"
