@@ -23,3 +23,13 @@ JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
 ```
 
 Run with a TypeScript runner (e.g. `tsx` or `ts-node`) or copy snippets into your app.
+
+## Browser visualization
+
+Run the interactive HMC visualization:
+
+```bash
+npm run viz
+```
+
+Then open http://localhost:5173 in your browser.

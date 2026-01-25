@@ -7,7 +7,7 @@ Interactive browser-based visualization of Hamiltonian Monte Carlo sampling usin
 From the project root:
 
 ```bash
-npx vite examples/visualization
+npm run viz
 ```
 
 Then open http://localhost:5173 in your browser.
