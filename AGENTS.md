@@ -19,3 +19,21 @@ npm run test:watch  # TDD mode
 npm run typecheck   # Types only
 npm run lint        # Lint only
 ```
+
+## Mandatory Integration Check (Memory)
+
+Run after changes that touch HMC, integrator, or memory management:
+
+```bash
+JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
+  ITERATIONS=2000 LOG_EVERY=500 npx tsx examples/memory-profile-hmc-jit-step.ts
+```
+
+**Desired output:** memory should plateau (heap and rss do not trend upward) and
+stay comfortably below ~300MB by the end of 2,000 iterations. If it grows
+monotonically or exceeds ~500MB, treat as a regression.
+
+**Why prefer JIT mode:** eager mode runs each primitive immediately and
+allocates many intermediates per step, pushing allocator high-water marks.
+`jitStep()` fuses the whole step into a compiled kernel, reducing allocations
+and stabilizing memory.

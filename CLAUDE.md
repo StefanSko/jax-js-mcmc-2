@@ -17,6 +17,21 @@ Building an HMC sampler on JAX-JS with strict TDD and memory-safe patterns.
 npm run ci  # typecheck + lint + test
 ```
 
+**Mandatory integration check (memory):**
+```bash
+JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
+  ITERATIONS=2000 LOG_EVERY=500 npx tsx examples/memory-profile-hmc-jit-step.ts
+```
+**Desired output:** memory should plateau (heap and rss do not trend upward) and
+stay comfortably below ~300MB by the end of 2,000 iterations. If it grows
+monotonically or exceeds ~500MB, treat as a regression.
+
+**Why prefer JIT mode:** eager mode executes each primitive immediately and
+allocates many intermediate arrays per step, which drives the allocator's
+high-water mark upward. `jitStep()` fuses the whole step into a compiled kernel,
+dramatically reducing intermediate allocations and stabilizing memory.
+
+
 ## JAX-JS Memory Model
 
 JAX-JS uses reference counting. Every array has a refCount.
