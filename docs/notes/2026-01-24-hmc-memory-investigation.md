@@ -5,8 +5,8 @@ We profiled HMC memory growth under three execution modes using the examples in
 `examples/` with `NODE_OPTIONS="--expose-gc"`:
 
 - **Eager HMC** grows rapidly into GBs over a few hundred iterations.
-- **HMC with `valueAndGrad({ jit: true })`** still grows rapidly.
 - **HMC with `.jitStep()`** stays flat over long runs (2,000 iterations).
+- **Legacy `valueAndGrad({ jit: true })` path** (now removed) still grew rapidly.
 
 This strongly suggests the memory growth is dominated by the *eager* execution
 path (many intermediate arrays and kernels per step), not by HMC state retention
@@ -50,13 +50,11 @@ iter 100 heap=283.0MB rss=551.4MB
 iter 200 heap=1060.2MB rss=1368.9MB
 ```
 
-### 3) HMC + `valueAndGrad({ jit: true })` (still grows)
-Command:
-```bash
-JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
-  ITERATIONS=300 LOG_EVERY=100 npx tsx examples/memory-profile-hmc-jit-value-and-grad.ts
-```
-Output:
+### 3) Legacy: HMC + `valueAndGrad({ jit: true })` (still grows)
+This path was removed from the builder API to simplify usage, but we keep the
+results here for reference.
+
+Previous output:
 ```
 start heap=8.7MB rss=109.5MB
 iter 100 heap=167.0MB rss=429.0MB
@@ -67,7 +65,7 @@ end heap=1188.5MB rss=1484.6MB
 
 ## Findings
 1. **`.jitStep()` stabilizes memory** over thousands of iterations.
-2. **`valueAndGrad({ jit: true })` is not sufficient**; eager mode still grows.
+2. **Legacy `valueAndGrad({ jit: true })` was not sufficient**; eager mode still grows.
 3. **JIT cache growth is tiny** (`jitCompileCache` stayed at 1–3 entries) during
    these runs, and no wasm module cache growth was observed.
 
@@ -86,8 +84,7 @@ until deeper instrumentation is added:
 
 ## Debug Tools (kept for future profiling)
 ### 1) Example scripts
-- `examples/memory-profile-hmc.ts` (eager)
-- `examples/memory-profile-hmc-jit-value-and-grad.ts`
+- `examples/memory-profile-hmc.ts` (eager, uses `.jitStep(false)`)
 - `examples/memory-profile-hmc-jit-step.ts`
 - `examples/memory-profile-gradient-descent.ts`
 

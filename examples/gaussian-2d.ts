@@ -9,7 +9,6 @@ const sampler = HMC(logdensityFn)
   .stepSize(0.2)
   .numIntegrationSteps(3)
   .inverseMassMatrix(np.array([1.0, 1.0]))
-  .valueAndGrad({ jit: true })
   .build();
 
 let state = sampler.init(np.array([0.0, 0.0]));

@@ -1602,8 +1602,6 @@ interface PartialConfig {
   numIntegrationSteps?: number;
   inverseMassMatrix?: Array;
   divergenceThreshold?: number;
-  useValueAndGrad?: boolean;
-  jitValueAndGrad?: boolean;
   jitStep?: boolean;
 }
 
@@ -1633,14 +1631,6 @@ export class HMCBuilder {
     return new HMCBuilder(this.logdensityFn, { ...this.config, divergenceThreshold: value });
   }
 
-  valueAndGrad(options: { jit?: boolean } = {}): HMCBuilder {
-    return new HMCBuilder(this.logdensityFn, {
-      ...this.config,
-      useValueAndGrad: true,
-      jitValueAndGrad: options.jit ?? false,
-    });
-  }
-
   jitStep(value = true): HMCBuilder {
     return new HMCBuilder(this.logdensityFn, {
       ...this.config,
@@ -1651,15 +1641,9 @@ export class HMCBuilder {
   build(): HMCSampler {
     const fullConfig = this.validateAndFillDefaults();
     const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix.ref);
-    const logdensityAndGrad = fullConfig.useValueAndGrad
-      ? fullConfig.jitValueAndGrad
-        ? jit(valueAndGrad(this.logdensityFn))
-        : valueAndGrad(this.logdensityFn)
-      : null;
     const integrator = createVelocityVerlet(
       this.logdensityFn,
-      metric.kineticEnergy,
-      logdensityAndGrad ?? undefined
+      metric.kineticEnergy
     );
     const stepCore = createHMCKernel(fullConfig, this.logdensityFn, metric, integrator);
     const stepArrays = (key: Array, state: HMCState): [HMCState, Omit<HMCInfo, 'numIntegrationSteps'>] => {
@@ -1686,18 +1670,19 @@ export class HMCBuilder {
         }
       : stepCore;
 
+    const logdensityGradFn = grad(this.logdensityFn);
     const init = (position: Array): HMCState => {
       return {
         position: position.ref,
         logdensity: this.logdensityFn(position.ref),
-        logdensityGrad: grad(this.logdensityFn)(position),
+        logdensityGrad: logdensityGradFn(position),
       };
     };
 
     return { init, step };
   }
 
-  private validateAndFillDefaults(): HMCConfig {
+  private validateAndFillDefaults(): HMCConfig & { jitStep: boolean } {
     if (this.config.stepSize === undefined) {
       throw new Error('stepSize required');
     }
@@ -1713,9 +1698,7 @@ export class HMCBuilder {
       numIntegrationSteps: this.config.numIntegrationSteps,
       inverseMassMatrix: this.config.inverseMassMatrix,
       divergenceThreshold: this.config.divergenceThreshold ?? 1000,
-      useValueAndGrad: this.config.useValueAndGrad ?? false,
-      jitValueAndGrad: this.config.jitValueAndGrad ?? false,
-      jitStep: this.config.jitStep ?? false,
+      jitStep: this.config.jitStep ?? true,
     };
   }
 }
