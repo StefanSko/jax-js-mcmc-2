@@ -63,7 +63,11 @@ function formatArgs(args: unknown[]): string {
  */
 async function sendToBackend(level: LogLevel, args: unknown[]): Promise<void> {
   // Guard against recursive sending (e.g., if fetch itself logs something)
-  if (isSending) return;
+  if (isSending) {
+    // Queue for later instead of dropping
+    setTimeout(() => sendToBackend(level, args), 10);
+    return;
+  }
 
   isSending = true;
   const controller = new AbortController();
@@ -122,6 +126,19 @@ export function installConsoleBridge(): void {
   console.error = createWrapper('error');
   console.info = createWrapper('info');
   console.debug = createWrapper('debug');
+
+  // Capture uncaught exceptions
+  window.addEventListener('error', (event) => {
+    sendToBackend('error', [`[UNCAUGHT] ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`]);
+  });
+
+  // Capture unhandled promise rejections
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason instanceof Error
+      ? `${event.reason.name}: ${event.reason.message}`
+      : String(event.reason);
+    sendToBackend('error', [`[UNHANDLED REJECTION] ${reason}`]);
+  });
 
   // Log that we're active (using original to avoid sending this to backend)
   originalConsole.info('[console-bridge] Active - logs will appear in terminal');

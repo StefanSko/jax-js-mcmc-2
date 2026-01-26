@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
 
 /**
  * Console Bridge Plugin
@@ -69,14 +69,151 @@ function consoleBridgePlugin(): Plugin {
   };
 }
 
+/**
+ * API Control Plugin
+ *
+ * Provides HTTP API endpoints to control the HMC visualization from the terminal.
+ * Communicates with the browser via Vite's HMR WebSocket.
+ */
+function apiControlPlugin(): Plugin {
+  let viteServer: ViteDevServer | null = null;
+  const pendingRequests = new Map<string, {
+    resolve: (value: unknown) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>();
+
+  return {
+    name: 'api-control',
+    configureServer(server) {
+      viteServer = server;
+
+      // Handle HMR messages from browser (responses to our commands)
+      server.ws.on('hmcviz:response', (data: { requestId: string; result: unknown }) => {
+        const pending = pendingRequests.get(data.requestId);
+        if (pending) {
+          clearTimeout(pending.timeout);
+          pendingRequests.delete(data.requestId);
+          pending.resolve(data.result);
+        }
+      });
+
+      // Helper to send command to browser and wait for response
+      const sendCommand = (command: string, timeout = 5000): Promise<unknown> => {
+        return new Promise((resolve, reject) => {
+          const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+          const timeoutHandle = setTimeout(() => {
+            pendingRequests.delete(requestId);
+            reject(new Error('Request timeout - browser may not be connected'));
+          }, timeout);
+
+          pendingRequests.set(requestId, { resolve, timeout: timeoutHandle });
+
+          server.ws.send({
+            type: 'custom',
+            event: 'hmcviz:command',
+            data: { requestId, command },
+          });
+        });
+      };
+
+      // Add API middleware
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/__api/')) {
+          return next();
+        }
+
+        const endpoint = req.url.replace('/__api/', '');
+
+        // Set JSON response headers
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        // Handle CORS preflight
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        const handleCommand = async (command: string) => {
+          try {
+            const result = await sendCommand(command);
+            res.statusCode = 200;
+            res.end(JSON.stringify(result));
+          } catch (error) {
+            res.statusCode = 503;
+            res.end(JSON.stringify({
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }));
+          }
+        };
+
+        switch (endpoint) {
+          case 'status':
+            if (req.method === 'GET') {
+              handleCommand('getStatus');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
+          case 'play':
+            if (req.method === 'POST') {
+              handleCommand('play');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
+          case 'pause':
+            if (req.method === 'POST') {
+              handleCommand('pause');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
+          case 'step':
+            if (req.method === 'POST') {
+              handleCommand('step');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
+          case 'reset':
+            if (req.method === 'POST') {
+              handleCommand('reset');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
+          default:
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: 'Not Found', endpoints: ['status', 'play', 'pause', 'step', 'reset'] }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [consoleBridgePlugin()],
+  plugins: [consoleBridgePlugin(), apiControlPlugin()],
   // Pass CONSOLE_BRIDGE env var to client as VITE_CONSOLE_BRIDGE
   define: {
     'import.meta.env.VITE_CONSOLE_BRIDGE': JSON.stringify(process.env.CONSOLE_BRIDGE === '1'),
   },
   // Optimize for development
   server: {
-    open: false,
+    open: true,  // Auto-open browser
   },
 });
