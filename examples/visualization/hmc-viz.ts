@@ -4,6 +4,9 @@
  * Interactive browser visualization of Hamiltonian Monte Carlo sampling.
  */
 
+// Console bridge must be first - sends browser logs to terminal
+import './console-bridge';
+
 import { numpy as np, random } from '@jax-js/jax';
 import { HMC, type HMCInfo, type HMCState } from '../../src';
 import { distributions, type Distribution } from './distributions';
