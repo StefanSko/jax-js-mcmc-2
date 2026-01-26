@@ -197,9 +197,30 @@ function apiControlPlugin(): Plugin {
             }
             break;
 
+          case 'distributions':
+            if (req.method === 'GET') {
+              handleCommand('getDistributions');
+            } else {
+              res.statusCode = 405;
+              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            }
+            break;
+
           default:
-            res.statusCode = 404;
-            res.end(JSON.stringify({ error: 'Not Found', endpoints: ['status', 'play', 'pause', 'step', 'reset'] }));
+            // Handle distribution setting: /__api/distribution/<name>
+            if (endpoint.startsWith('distribution/') && req.method === 'POST') {
+              const distName = endpoint.replace('distribution/', '');
+              handleCommand(`setDistribution:${distName}`);
+            } else if (endpoint.startsWith('stepsize/') && req.method === 'POST') {
+              const size = endpoint.replace('stepsize/', '');
+              handleCommand(`setStepSize:${size}`);
+            } else if (endpoint.startsWith('numsteps/') && req.method === 'POST') {
+              const steps = endpoint.replace('numsteps/', '');
+              handleCommand(`setNumSteps:${steps}`);
+            } else {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Not Found', endpoints: ['status', 'play', 'pause', 'step', 'reset', 'distributions', 'distribution/<name>', 'stepsize/<value>', 'numsteps/<value>'] }));
+            }
         }
       });
     },
@@ -216,4 +237,13 @@ export default defineConfig({
   server: {
     open: true,  // Auto-open browser
   },
+  // Root directory for the visualization (needed for correct build paths)
+  root: 'examples/visualization',
+  // Build configuration for static deployment
+  build: {
+    outDir: '../../dist/visualization',
+    emptyOutDir: true,
+  },
+  // Base path for assets (use './' for relative paths, compatible with any hosting)
+  base: './',
 });

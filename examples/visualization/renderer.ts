@@ -19,6 +19,8 @@ export interface RenderColors {
   contour: string;
   background: string;
   trajectory: string;
+  trueParam: string;
+  trueMean: string;
 }
 
 const DEFAULT_COLORS: RenderColors = {
@@ -29,15 +31,21 @@ const DEFAULT_COLORS: RenderColors = {
   contour: '#334155',    // Slate
   background: '#16213e', // Dark blue
   trajectory: '#94a3b8', // Gray
+  trueParam: '#f472b6',  // Pink - for modes
+  trueMean: '#a78bfa',   // Purple - for mean
 };
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   private width: number = 0;
   private height: number = 0;
-  private bounds: Bounds;
+  private baseBounds: Bounds;  // Original bounds from distribution
+  private bounds: Bounds;       // Current view bounds (affected by zoom/pan)
   private colors: RenderColors;
   private padding = 40;
+  private zoomLevel: number = 1;
+  private panX: number = 0;  // Pan offset in world coordinates
+  private panY: number = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -47,7 +55,8 @@ export class CanvasRenderer {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get 2D context');
     this.ctx = ctx;
-    this.bounds = bounds;
+    this.baseBounds = { ...bounds };
+    this.bounds = { ...bounds };
     this.colors = { ...DEFAULT_COLORS, ...colors };
     this.resize();
   }
@@ -69,10 +78,89 @@ export class CanvasRenderer {
   }
 
   /**
-   * Update visualization bounds.
+   * Update visualization bounds (resets zoom and pan).
    */
   setBounds(bounds: Bounds): void {
-    this.bounds = bounds;
+    this.baseBounds = { ...bounds };
+    this.zoomLevel = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.updateViewBounds();
+  }
+
+  /**
+   * Update the view bounds based on zoom level and pan offset.
+   */
+  private updateViewBounds(): void {
+    const { xMin, xMax, yMin, yMax } = this.baseBounds;
+    const centerX = (xMin + xMax) / 2 + this.panX;
+    const centerY = (yMin + yMax) / 2 + this.panY;
+    const halfWidth = (xMax - xMin) / 2 / this.zoomLevel;
+    const halfHeight = (yMax - yMin) / 2 / this.zoomLevel;
+
+    this.bounds = {
+      xMin: centerX - halfWidth,
+      xMax: centerX + halfWidth,
+      yMin: centerY - halfHeight,
+      yMax: centerY + halfHeight,
+    };
+  }
+
+  /**
+   * Zoom in by a factor.
+   */
+  zoomIn(factor: number = 1.2): void {
+    this.zoomLevel *= factor;
+    this.updateViewBounds();
+  }
+
+  /**
+   * Zoom out by a factor.
+   */
+  zoomOut(factor: number = 1.2): void {
+    this.zoomLevel /= factor;
+    if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;  // Min zoom
+    this.updateViewBounds();
+  }
+
+  /**
+   * Reset zoom and pan to defaults.
+   */
+  resetView(): void {
+    this.zoomLevel = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.updateViewBounds();
+  }
+
+  /**
+   * Pan the view by delta in world coordinates.
+   */
+  pan(deltaX: number, deltaY: number): void {
+    this.panX += deltaX;
+    this.panY += deltaY;
+    this.updateViewBounds();
+  }
+
+  /**
+   * Get current zoom level.
+   */
+  getZoomLevel(): number {
+    return this.zoomLevel;
+  }
+
+  /**
+   * Convert canvas coordinates to world coordinates.
+   */
+  canvasToWorld(canvasX: number, canvasY: number): [number, number] {
+    const { xMin, xMax, yMin, yMax } = this.bounds;
+    const plotWidth = this.width - 2 * this.padding;
+    const plotHeight = this.height - 2 * this.padding;
+
+    const worldX = xMin + ((canvasX - this.padding) / plotWidth) * (xMax - xMin);
+    const worldY = yMax - ((canvasY - this.padding) / plotHeight) * (yMax - yMin);
+
+    return [worldX, worldY];
   }
 
   /**
@@ -199,6 +287,92 @@ export class CanvasRenderer {
   }
 
   /**
+   * Draw true parameter markers (modes and mean).
+   */
+  drawTrueParams(
+    modes: [number, number][],
+    mean?: [number, number]
+  ): void {
+    const ctx = this.ctx;
+
+    // Draw modes as star markers
+    for (const [x, y] of modes) {
+      const [cx, cy] = this.worldToCanvas(x, y);
+      this.drawStar(cx, cy, 8, 5, this.colors.trueParam);
+    }
+
+    // Draw mean as diamond marker (if different from modes)
+    if (mean) {
+      const [mx, my] = mean;
+      // Check if mean is not at a mode location
+      const isAtMode = modes.some(
+        ([x, y]) => Math.abs(x - mx) < 0.01 && Math.abs(y - my) < 0.01
+      );
+      if (!isAtMode) {
+        const [cx, cy] = this.worldToCanvas(mx, my);
+        this.drawDiamond(cx, cy, 8, this.colors.trueMean);
+      }
+    }
+  }
+
+  /**
+   * Draw a star shape.
+   */
+  private drawStar(
+    cx: number,
+    cy: number,
+    outerRadius: number,
+    points: number,
+    color: string
+  ): void {
+    const ctx = this.ctx;
+    const innerRadius = outerRadius * 0.4;
+
+    ctx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const angle = (i * Math.PI) / points - Math.PI / 2;
+      const x = cx + radius * Math.cos(angle);
+      const y = cy + radius * Math.sin(angle);
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  /**
+   * Draw a diamond shape.
+   */
+  private drawDiamond(
+    cx: number,
+    cy: number,
+    size: number,
+    color: string
+  ): void {
+    const ctx = this.ctx;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx + size, cy);
+    ctx.lineTo(cx, cy + size);
+    ctx.lineTo(cx - size, cy);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  /**
    * Draw trajectory jump arrow from previous to current position.
    */
   drawTrajectoryJump(
@@ -253,11 +427,19 @@ export class CanvasRenderer {
     currentX: number,
     currentY: number,
     prevX?: number,
-    prevY?: number
+    prevY?: number,
+    trueParams?: { modes: [number, number][]; mean?: [number, number] },
+    showTrueParams: boolean = false
   ): void {
     this.clear();
     this.drawContours(contours);
     this.drawAxes();
+
+    // Draw true params behind samples if enabled
+    if (showTrueParams && trueParams) {
+      this.drawTrueParams(trueParams.modes, trueParams.mean);
+    }
+
     this.drawSamples(samples);
 
     if (prevX !== undefined && prevY !== undefined) {

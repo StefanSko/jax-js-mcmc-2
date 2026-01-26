@@ -130,6 +130,51 @@
     }
     .legend-item { display: flex; align-items: center; gap: 5px; }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-star { color: #f472b6; font-size: 14px; }
+    .legend-diamond { color: #a78bfa; font-size: 14px; }
+
+    /* Checkbox styling */
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .true-params-info {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: #1a1a2e;
+      border-radius: 4px;
+    }
+
+    /* Zoom controls */
+    .zoom-controls {
+      align-items: center;
+    }
+    .zoom-controls .btn {
+      width: 36px;
+      padding: 6px 0;
+      font-size: 16px;
+    }
+    .zoom-level {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-left: 8px;
+      min-width: 45px;
+    }
+    .zoom-hint {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 4px;
+    }
 
     /* Title */
     h1 { font-size: 24px; margin-bottom: 4px; }
@@ -171,6 +216,14 @@
           <div class="legend-dot" style="background: #60a5fa;"></div>
           <span>Current</span>
         </div>
+        <div class="legend-item">
+          <span class="legend-star">★</span>
+          <span>Mode</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-diamond">◆</span>
+          <span>Mean</span>
+        </div>
       </div>
     </div>
 
@@ -181,8 +234,21 @@
         <label for="distribution">Distribution</label>
         <select id="distribution">
           <option value="gaussian">2D Gaussian</option>
-          <option value="banana">Banana</option>
+          <option value="correlated">Correlated Gaussian</option>
+          <option value="banana">Banana (Rosenbrock)</option>
+          <option value="bimodal">Bimodal</option>
+          <option value="donut">Donut</option>
+          <option value="funnel">Neal's Funnel</option>
+          <option value="squiggle">Squiggle</option>
         </select>
+      </div>
+
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-true-params" checked>
+          Show True Parameters
+        </label>
+        <div class="true-params-info" id="true-params-info">-</div>
       </div>
 
       <div class="control-group">
@@ -209,6 +275,17 @@
           <button class="btn btn-secondary" id="step">Step</button>
           <button class="btn btn-secondary" id="reset">Reset</button>
         </div>
+      </div>
+
+      <div class="control-group">
+        <label>Zoom</label>
+        <div class="btn-group zoom-controls">
+          <button class="btn btn-secondary" id="zoom-in" title="Zoom In">+</button>
+          <button class="btn btn-secondary" id="zoom-out" title="Zoom Out">−</button>
+          <button class="btn btn-secondary" id="zoom-reset" title="Reset View">⟲</button>
+          <span class="zoom-level" id="zoom-level">100%</span>
+        </div>
+        <div class="zoom-hint">Scroll on canvas to zoom</div>
       </div>
 
       <div class="control-group">

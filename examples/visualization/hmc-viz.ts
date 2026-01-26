@@ -7,7 +7,7 @@
 // Console bridge must be first - sends browser logs to terminal
 import './console-bridge';
 
-import { numpy as np, random } from '@jax-js/jax';
+import { numpy as np, random, init as jaxInit, defaultDevice } from '@jax-js/jax';
 import { HMC, type HMCInfo, type HMCState } from '../../src';
 import { distributions, type Distribution } from './distributions';
 import { computeDensityGrid, computeContourLevels, extractContours, type ContourLine } from './contour';
@@ -22,6 +22,7 @@ let contours: ContourLine[] = [];
 let renderer: CanvasRenderer;
 let isPlaying = false;
 let animationTimer: number | null = null;
+let baseSeed = Date.now();  // Random base seed, changes on each reset
 let stepCounter = 0;
 let acceptedCount = 0;
 let divergentCount = 0;
@@ -41,6 +42,16 @@ const speedValue = document.getElementById('speed-value') as HTMLSpanElement;
 const playPauseBtn = document.getElementById('play-pause') as HTMLButtonElement;
 const stepBtn = document.getElementById('step') as HTMLButtonElement;
 const resetBtn = document.getElementById('reset') as HTMLButtonElement;
+
+// True params elements
+const showTrueParamsCheckbox = document.getElementById('show-true-params') as HTMLInputElement;
+const trueParamsInfo = document.getElementById('true-params-info') as HTMLDivElement;
+
+// Zoom elements
+const zoomInBtn = document.getElementById('zoom-in') as HTMLButtonElement;
+const zoomOutBtn = document.getElementById('zoom-out') as HTMLButtonElement;
+const zoomResetBtn = document.getElementById('zoom-reset') as HTMLButtonElement;
+const zoomLevelDisplay = document.getElementById('zoom-level') as HTMLSpanElement;
 
 // Stats elements
 const statSamples = document.getElementById('stat-samples') as HTMLSpanElement;
@@ -71,10 +82,18 @@ function createJSLogdensity(dist: Distribution): (x: number, y: number) => numbe
   const name = dist.name;
 
   if (name === '2D Gaussian') {
-    const precisionDiag = 1.333;
-    const precisionOffDiag = -0.667;
+    // Isotropic Gaussian: log p(x) = -0.5 * ||x||^2
+    return (x: number, y: number) => -0.5 * (x * x + y * y);
+  }
+
+  if (name === 'Correlated Gaussian') {
+    // Correlated Gaussian with rho = 0.9
+    const rho = 0.9;
+    const factor = 1 / (1 - rho * rho);
     return (x: number, y: number) => {
-      const quadForm = precisionDiag * (x * x + y * y) + 2 * precisionOffDiag * x * y;
+      const sumSq = x * x + y * y;
+      const xy2 = 2 * x * y;
+      const quadForm = factor * sumSq - rho * factor * xy2;
       return -0.5 * quadForm;
     };
   }
@@ -82,22 +101,62 @@ function createJSLogdensity(dist: Distribution): (x: number, y: number) => numbe
   if (name === 'Banana') {
     const a = 1.0;
     const b = 100.0;
+    const scale = 0.05;
     return (x: number, y: number) => {
       const term1 = (a - x) ** 2;
       const term2 = b * (y - x * x) ** 2;
-      return -0.05 * (term1 + term2);
+      return -scale * (term1 + term2);
+    };
+  }
+
+  if (name === 'Bimodal') {
+    const mode1 = [-2, 0];
+    const mode2 = [2, 0];
+    const sigma = 0.7;
+    const sigmaSq2 = 2 * sigma * sigma;
+    return (x: number, y: number) => {
+      const d1Sq = (x - mode1[0]) ** 2 + (y - mode1[1]) ** 2;
+      const d2Sq = (x - mode2[0]) ** 2 + (y - mode2[1]) ** 2;
+      const logp1 = -d1Sq / sigmaSq2;
+      const logp2 = -d2Sq / sigmaSq2;
+      // log-sum-exp
+      const maxLog = Math.max(logp1, logp2);
+      return maxLog + Math.log(Math.exp(logp1 - maxLog) + Math.exp(logp2 - maxLog));
+    };
+  }
+
+  if (name === 'Donut') {
+    const radius = 2.5;
+    const width = 0.4;
+    const widthSq2 = 2 * width * width;
+    return (x: number, y: number) => {
+      const r = Math.sqrt(x * x + y * y);
+      const deviation = r - radius;
+      return -(deviation * deviation) / widthSq2;
     };
   }
 
   if (name === 'Funnel') {
     return (v: number, x: number) => {
-      const logPv = -v * v / 18;
+      const logPv = -(v * v) / 18;
       const logPxGivenV = -v / 2 - (x * x) / (2 * Math.exp(v));
       return logPv + logPxGivenV;
     };
   }
 
-  // Fallback
+  if (name === 'Squiggle') {
+    const amplitude = 1.5;
+    const frequency = 1.0;
+    const width = 0.3;
+    const widthSq2 = 2 * width * width;
+    return (x: number, y: number) => {
+      const ridge = amplitude * Math.sin(frequency * x);
+      const deviation = y - ridge;
+      return -(deviation * deviation) / widthSq2;
+    };
+  }
+
+  // Fallback: uniform (flat)
   return () => 0;
 }
 
@@ -159,6 +218,7 @@ function reset(): void {
 
   // Reset stats
   samples = [];
+  baseSeed = Date.now();  // New random seed for each reset
   stepCounter = 0;
   acceptedCount = 0;
   divergentCount = 0;
@@ -174,6 +234,7 @@ function reset(): void {
   // Update UI
   updateStats();
   updateCurrentInfo(null);
+  trueParamsInfo.textContent = currentDistribution.trueParams.description;
   render();
 }
 
@@ -186,7 +247,7 @@ function performStep(): void {
   prevX = oldPos[0];
   prevY = oldPos[1];
 
-  const key = random.key(stepCounter);
+  const key = random.key(baseSeed + stepCounter);
   const [newState, info] = sampler.step(key, hmcState);
 
   // Read info values before disposal
@@ -194,6 +255,9 @@ function performStep(): void {
   const isAccepted = info.isAccepted.ref.js() as boolean;
   const isDivergent = info.isDivergent.ref.js() as boolean;
   const energy = info.energy.ref.js() as number;
+
+  // Debug logging
+  console.log(`[HMC-VIZ] Step ${stepCounter}: pos=(${prevX?.toFixed(2)}, ${prevY?.toFixed(2)}) -> acceptProb=${acceptanceProb.toFixed(4)}, energy=${energy.toFixed(2)}, accepted=${isAccepted}`);
 
   // Dispose info (old state was consumed by step)
   disposeInfo(info);
@@ -278,13 +342,26 @@ function updateCurrentInfo(info: {
 }
 
 /**
+ * Update zoom level display.
+ */
+function updateZoomDisplay(): void {
+  const level = renderer.getZoomLevel();
+  zoomLevelDisplay.textContent = `${Math.round(level * 100)}%`;
+}
+
+/**
  * Render the current visualization state.
  */
 function render(): void {
   const posArray = hmcState.position.ref.js() as number[];
   const x = posArray[0]!;
   const y = posArray[1]!;
-  renderer.render(contours, samples, x, y, prevX, prevY);
+  const trueParams = {
+    modes: currentDistribution.trueParams.modes,
+    mean: currentDistribution.trueParams.mean,
+  };
+  const showTrueParams = showTrueParamsCheckbox.checked;
+  renderer.render(contours, samples, x, y, prevX, prevY, trueParams, showTrueParams);
 }
 
 /**
@@ -360,6 +437,42 @@ function setupEventListeners(): void {
   stepBtn.addEventListener('click', performStep);
   resetBtn.addEventListener('click', reset);
 
+  // True params toggle
+  showTrueParamsCheckbox.addEventListener('change', () => {
+    render();
+  });
+
+  // Zoom controls
+  zoomInBtn.addEventListener('click', () => {
+    renderer.zoomIn();
+    updateZoomDisplay();
+    render();
+  });
+
+  zoomOutBtn.addEventListener('click', () => {
+    renderer.zoomOut();
+    updateZoomDisplay();
+    render();
+  });
+
+  zoomResetBtn.addEventListener('click', () => {
+    renderer.resetView();
+    updateZoomDisplay();
+    render();
+  });
+
+  // Mouse wheel zoom on canvas
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      renderer.zoomIn(1.1);
+    } else {
+      renderer.zoomOut(1.1);
+    }
+    updateZoomDisplay();
+    render();
+  }, { passive: false });
+
   // Resize handler
   window.addEventListener('resize', () => {
     renderer.resize();
@@ -378,9 +491,26 @@ async function init(): Promise<void> {
   await new Promise((r) => setTimeout(r, 100));
 
   try {
+    // Initialize JAX-JS with WebGPU (fall back to wasm if unavailable)
+    console.log('[HMC-VIZ] 1a. Initializing JAX-JS backends...');
+    const availableDevices = await jaxInit();
+    console.log('[HMC-VIZ] 1b. Available devices:', availableDevices);
+
+    if (availableDevices.includes('webgpu')) {
+      defaultDevice('webgpu');
+      loadingEl.querySelector('.loading-text')!.textContent = 'Using WebGPU backend...';
+      console.log('[HMC-VIZ] 1c. Using WebGPU backend');
+    } else {
+      console.warn('[HMC-VIZ] 1c. WebGPU not available, using wasm backend');
+      loadingEl.querySelector('.loading-text')!.textContent = 'Using WASM backend (WebGPU unavailable)...';
+    }
+
+    await new Promise((r) => setTimeout(r, 50));
+
     // Initialize distribution
     currentDistribution = distributions.gaussian!();
     console.log('[HMC-VIZ] 2. Distribution created:', currentDistribution.name);
+    trueParamsInfo.textContent = currentDistribution.trueParams.description;
 
     // Create renderer
     renderer = new CanvasRenderer(canvas, currentDistribution.bounds);
@@ -433,7 +563,12 @@ interface HMCVizAPI {
     acceptedCount: number;
     divergentCount: number;
     acceptanceRate: number;
+    currentDistribution: string;
   };
+  getDistributions: () => string[];
+  setDistribution: (name: string) => { success: boolean; error?: string; distribution?: string };
+  setStepSize: (size: number) => { success: boolean; stepSize: number };
+  setNumSteps: (steps: number) => { success: boolean; numSteps: number };
 }
 
 (window as unknown as { __hmcViz: HMCVizAPI }).__hmcViz = {
@@ -466,14 +601,51 @@ interface HMCVizAPI {
   reset: () => {
     reset();
   },
-  getStatus: () => ({
-    isPlaying,
-    samples: samples.length,
-    stepCounter,
-    acceptedCount,
-    divergentCount,
-    acceptanceRate: samples.length > 0 ? acceptedCount / samples.length : 0,
-  }),
+  getStatus: () => {
+    const posArray = hmcState.position.ref.js() as number[];
+    return {
+      isPlaying,
+      samples: samples.length,
+      stepCounter,
+      acceptedCount,
+      divergentCount,
+      acceptanceRate: samples.length > 0 ? acceptedCount / samples.length : 0,
+      currentDistribution: currentDistribution.name,
+      position: { x: posArray[0], y: posArray[1] },
+    };
+  },
+  getDistributions: () => Object.keys(distributions),
+  setDistribution: (name: string) => {
+    if (!(name in distributions)) {
+      return { success: false, error: `Unknown distribution: ${name}. Available: ${Object.keys(distributions).join(', ')}` };
+    }
+    try {
+      currentDistribution = distributions[name as keyof typeof distributions]!();
+      distributionSelect.value = name;
+      reset();
+      console.log(`[HMC-VIZ] Distribution changed to: ${currentDistribution.name}`);
+      return { success: true, distribution: currentDistribution.name };
+    } catch (error) {
+      console.error('[HMC-VIZ] setDistribution error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+  setStepSize: (size: number) => {
+    stepSizeSlider.value = String(size);
+    stepSizeValue.textContent = String(size);
+    buildSampler();
+    initializeState();
+    console.log(`[HMC-VIZ] Step size changed to: ${size}`);
+    return { success: true, stepSize: size };
+  },
+  setNumSteps: (steps: number) => {
+    numStepsSlider.value = String(steps);
+    numStepsValue.textContent = String(steps);
+    buildSampler();
+    initializeState();
+    console.log(`[HMC-VIZ] Num steps changed to: ${steps}`);
+    return { success: true, numSteps: steps };
+  },
 };
 
 console.log('[HMC-VIZ] API exposed to window.__hmcViz');
@@ -504,8 +676,23 @@ if (import.meta.hot) {
           api.reset();
           result = api.getStatus();
           break;
+        case 'getDistributions':
+          result = api.getDistributions();
+          break;
         default:
-          result = { error: 'Unknown command' };
+          // Handle setDistribution:name command
+          if (data.command.startsWith('setDistribution:')) {
+            const distName = data.command.replace('setDistribution:', '');
+            result = api.setDistribution(distName);
+          } else if (data.command.startsWith('setStepSize:')) {
+            const size = parseFloat(data.command.replace('setStepSize:', ''));
+            result = api.setStepSize(size);
+          } else if (data.command.startsWith('setNumSteps:')) {
+            const steps = parseInt(data.command.replace('setNumSteps:', ''), 10);
+            result = api.setNumSteps(steps);
+          } else {
+            result = { error: 'Unknown command' };
+          }
       }
     } catch (error) {
       console.error('[HMC-VIZ] Command error:', error);
