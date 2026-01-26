@@ -115,14 +115,24 @@ function computeContours(): void {
  * Build HMC sampler with current parameters.
  */
 function buildSampler(): void {
+  console.log('[HMC-VIZ] 4a. buildSampler() entered');
   const stepSize = parseFloat(stepSizeSlider.value);
   const numSteps = parseInt(numStepsSlider.value, 10);
+  console.log('[HMC-VIZ] 4b. Parsed params:', { stepSize, numSteps });
 
-  sampler = HMC(currentDistribution.logdensity)
-    .stepSize(stepSize)
-    .numIntegrationSteps(numSteps)
-    .inverseMassMatrix(np.array([1.0, 1.0]))
-    .build();
+  console.log('[HMC-VIZ] 4c. Calling HMC()...');
+  const builder = HMC(currentDistribution.logdensity);
+  console.log('[HMC-VIZ] 4d. HMC builder created');
+
+  console.log('[HMC-VIZ] 4e. Setting stepSize...');
+  const b2 = builder.stepSize(stepSize);
+  console.log('[HMC-VIZ] 4f. Setting numIntegrationSteps...');
+  const b3 = b2.numIntegrationSteps(numSteps);
+  console.log('[HMC-VIZ] 4g. Setting inverseMassMatrix...');
+  const b4 = b3.inverseMassMatrix(np.array([1.0, 1.0]));
+  console.log('[HMC-VIZ] 4h. Calling build()...');
+  sampler = b4.build();
+  console.log('[HMC-VIZ] 4i. buildSampler() complete');
 }
 
 /**
@@ -171,6 +181,11 @@ function reset(): void {
  * Perform one HMC step.
  */
 function performStep(): void {
+  // Save old position BEFORE step (step consumes the state)
+  const oldPos = hmcState.position.ref.js() as number[];
+  prevX = oldPos[0];
+  prevY = oldPos[1];
+
   const key = random.key(stepCounter);
   const [newState, info] = sampler.step(key, hmcState);
 
@@ -180,12 +195,7 @@ function performStep(): void {
   const isDivergent = info.isDivergent.ref.js() as boolean;
   const energy = info.energy.ref.js() as number;
 
-  // Get current position for previous tracking
-  const oldPos = hmcState.position.ref.js() as number[];
-  prevX = oldPos[0];
-  prevY = oldPos[1];
-
-  // Dispose old state and info
+  // Dispose info (old state was consumed by step)
   disposeInfo(info);
 
   // Update state
@@ -283,7 +293,14 @@ function render(): void {
 function tick(): void {
   if (!isPlaying) return;
 
-  performStep();
+  try {
+    performStep();
+  } catch (error) {
+    console.error('[HMC-VIZ] tick() error:', error);
+    isPlaying = false;
+    playPauseBtn.textContent = 'Play';
+    return;
+  }
 
   const speed = parseInt(speedSlider.value, 10);
   animationTimer = window.setTimeout(tick, speed);
@@ -354,6 +371,7 @@ function setupEventListeners(): void {
  * Initialize the visualization.
  */
 async function init(): Promise<void> {
+  console.log('[HMC-VIZ] 1. init() starting');
   loadingEl.querySelector('.loading-text')!.textContent = 'Initializing JAX-JS...';
 
   // Small delay to let UI render
@@ -362,23 +380,31 @@ async function init(): Promise<void> {
   try {
     // Initialize distribution
     currentDistribution = distributions.gaussian!();
+    console.log('[HMC-VIZ] 2. Distribution created:', currentDistribution.name);
 
     // Create renderer
     renderer = new CanvasRenderer(canvas, currentDistribution.bounds);
+    console.log('[HMC-VIZ] 3. Renderer created');
 
     // Build sampler and state (this triggers JAX-JS warmup)
     loadingEl.querySelector('.loading-text')!.textContent = 'Building HMC sampler...';
     await new Promise((r) => setTimeout(r, 50));
 
+    console.log('[HMC-VIZ] 4. Building sampler...');
     buildSampler();
+    console.log('[HMC-VIZ] 5. Sampler built');
     initializeState();
+    console.log('[HMC-VIZ] 6. State initialized');
 
     // Compute contours
     loadingEl.querySelector('.loading-text')!.textContent = 'Computing contours...';
     await new Promise((r) => setTimeout(r, 50));
+    console.log('[HMC-VIZ] 7. Computing contours...');
     computeContours();
+    console.log('[HMC-VIZ] 8. Contours computed');
 
     // Initial render
+    console.log('[HMC-VIZ] 9. Rendering...');
     render();
 
     // Setup UI
@@ -386,11 +412,109 @@ async function init(): Promise<void> {
 
     // Hide loading
     loadingEl.style.display = 'none';
+    console.log('[HMC-VIZ] 10. Complete!');
   } catch (error) {
     loadingEl.querySelector('.loading-text')!.textContent =
       `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    console.error('Initialization error:', error);
+    console.error('[HMC-VIZ] Initialization error:', error);
   }
+}
+
+// Expose control interface to window for API control
+interface HMCVizAPI {
+  play: () => void;
+  pause: () => void;
+  step: () => { isAccepted: boolean; isDivergent: boolean; samples: number } | null;
+  reset: () => void;
+  getStatus: () => {
+    isPlaying: boolean;
+    samples: number;
+    stepCounter: number;
+    acceptedCount: number;
+    divergentCount: number;
+    acceptanceRate: number;
+  };
+}
+
+(window as unknown as { __hmcViz: HMCVizAPI }).__hmcViz = {
+  play: () => {
+    if (!isPlaying) {
+      togglePlay();
+    }
+  },
+  pause: () => {
+    if (isPlaying) {
+      togglePlay();
+    }
+  },
+  step: () => {
+    if (isPlaying) {
+      // Pause first if playing
+      togglePlay();
+    }
+    try {
+      performStep();
+      const lastSample = samples[samples.length - 1];
+      return lastSample
+        ? { isAccepted: lastSample.accepted, isDivergent: lastSample.divergent, samples: samples.length }
+        : null;
+    } catch (error) {
+      console.error('[HMC-VIZ] step() error:', error);
+      return null;
+    }
+  },
+  reset: () => {
+    reset();
+  },
+  getStatus: () => ({
+    isPlaying,
+    samples: samples.length,
+    stepCounter,
+    acceptedCount,
+    divergentCount,
+    acceptanceRate: samples.length > 0 ? acceptedCount / samples.length : 0,
+  }),
+};
+
+console.log('[HMC-VIZ] API exposed to window.__hmcViz');
+
+// Set up HMR WebSocket handler for API control
+if (import.meta.hot) {
+  import.meta.hot.on('hmcviz:command', (data: { requestId: string; command: string }) => {
+    const api = (window as unknown as { __hmcViz: HMCVizAPI }).__hmcViz;
+    let result: unknown;
+
+    try {
+      switch (data.command) {
+        case 'getStatus':
+          result = api.getStatus();
+          break;
+        case 'play':
+          api.play();
+          result = api.getStatus();
+          break;
+        case 'pause':
+          api.pause();
+          result = api.getStatus();
+          break;
+        case 'step':
+          result = api.step();
+          break;
+        case 'reset':
+          api.reset();
+          result = api.getStatus();
+          break;
+        default:
+          result = { error: 'Unknown command' };
+      }
+    } catch (error) {
+      console.error('[HMC-VIZ] Command error:', error);
+      result = { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+
+    import.meta.hot!.send('hmcviz:response', { requestId: data.requestId, result });
+  });
+  console.log('[HMC-VIZ] HMR command handler registered');
 }
 
 // Start
