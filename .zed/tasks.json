@@ -1,0 +1,22 @@
+[
+  {
+    "label": "Run example (gaussian-1d)",
+    "command": "npx tsx examples/gaussian-1d.ts",
+    "cwd": "$ZED_WORKTREE_ROOT",
+  },
+  {
+    "label": "Debug example (inspect)",
+    "command": "NODE_OPTIONS=\"--inspect-brk\" npx tsx examples/gaussian-1d.ts",
+    "cwd": "$ZED_WORKTREE_ROOT",
+  },
+  {
+    "label": "Profile HMC jitStep (GC + loader)",
+    "command": "JAXJS_CACHE_LOG=1 NODE_OPTIONS=\"--expose-gc --loader ./tools/jaxjs-loader.mjs\" ITERATIONS=2000 LOG_EVERY=500 npx tsx examples/memory-profile-hmc-jit-step.ts",
+    "cwd": "$ZED_WORKTREE_ROOT",
+  },
+  {
+    "label": "Test (vitest)",
+    "command": "npm test",
+    "cwd": "$ZED_WORKTREE_ROOT",
+  },
+]
