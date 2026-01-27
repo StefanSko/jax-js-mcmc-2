@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run example (gaussian-1d)",
+      "type": "shell",
+      "command": "npx tsx examples/gaussian-1d.ts",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run example (gaussian-2d)",
+      "type": "shell",
+      "command": "npx tsx examples/gaussian-2d.ts",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Profile HMC jitStep (GC + loader)",
+      "type": "shell",
+      "command": "JAXJS_CACHE_LOG=1 NODE_OPTIONS=\"--expose-gc --loader ./tools/jaxjs-loader.mjs\" ITERATIONS=2000 LOG_EVERY=500 npx tsx examples/memory-profile-hmc-jit-step.ts",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (vitest)",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (watch mode)",
+      "type": "shell",
+      "command": "npm run test:watch",
+      "group": "test",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "CI (typecheck + lint + test)",
+      "type": "shell",
+      "command": "npm run ci",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Typecheck",
+      "type": "shell",
+      "command": "npm run typecheck",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "group": "build",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "Visualization (dev server)",
+      "type": "shell",
+      "command": "npm run viz",
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Visualization (debug with console bridge)",
+      "type": "shell",
+      "command": "npm run viz:debug",
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true
+    }
+  ]
+}
