@@ -1,6 +1,6 @@
-# HMC Visualization
+# HMC/RWM Visualization
 
-Interactive browser-based visualization of Hamiltonian Monte Carlo sampling using JAX-JS.
+Interactive browser-based visualization of Hamiltonian Monte Carlo (HMC) and Random Walk Metropolis (RWM) sampling using JAX-JS.
 
 ## Quick Start
 
@@ -49,8 +49,9 @@ This helps verify that MCMC samples are concentrating around the correct regions
 
 | Control | Description |
 |---------|-------------|
+| **Algorithm** | Choose between HMC (gradient-based) and RWM (random walk) |
 | **Step Size (ε)** | Leapfrog integration step size. Larger = more aggressive proposals |
-| **Integration Steps (L)** | Number of leapfrog steps per HMC iteration |
+| **Integration Steps (L)** | Number of leapfrog steps per HMC iteration (hidden for RWM) |
 | **Animation Speed** | Milliseconds between samples |
 | **Zoom** | Buttons or mouse wheel to zoom in/out on the canvas |
 
@@ -58,7 +59,7 @@ This helps verify that MCMC samples are concentrating around the correct regions
 
 - **Green dots** - Accepted samples
 - **Red dots** - Rejected samples
-- **Yellow dots** - Divergent transitions
+- **Yellow dots** - Divergent transitions (HMC only)
 - **Blue dot** - Current sampler position
 - **Gray contours** - Log-density contour lines
 - **Pink stars** - True modes
@@ -89,6 +90,10 @@ Divergent transitions (yellow) indicate numerical instability from:
 - Step size too large for local curvature
 - Extreme scale variation (like Neal's Funnel)
 - Approaching distribution boundaries
+
+## RWM Notes
+
+RWM proposes `q' = q + ε * noise` without gradients or momentum. It typically mixes more slowly than HMC, so expect lower acceptance rates and more random-walk behavior for larger step sizes.
 
 ## API Endpoints (Development)
 
