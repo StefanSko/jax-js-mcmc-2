@@ -296,6 +296,16 @@ function performStep(): void {
   const energyLabel = energy === null ? 'N/A' : energy.toFixed(2);
   console.log(`[HMC-VIZ] Step ${stepCounter}: pos=(${prevX?.toFixed(2)}, ${prevY?.toFixed(2)}) -> acceptProb=${acceptanceProb.toFixed(4)}, energy=${energyLabel}, accepted=${isAccepted}`);
 
+  // Capture for debug API (position will be updated after state update)
+  const newPosArray = newState.position.ref.js() as number[];
+  lastStepResult = {
+    accepted: isAccepted,
+    acceptanceProb,
+    position: [newPosArray[0]!, newPosArray[1]!],
+    ...(energy !== null && { energy }),
+    ...(currentAlgorithm === 'hmc' && { isDivergent }),
+  };
+
   // Dispose info (old state was consumed by step)
   disposeInfo(info);
 
@@ -599,6 +609,37 @@ async function init(): Promise<void> {
   }
 }
 
+// Debug API types for agentic debugging
+interface DebugState {
+  algorithm: Algorithm;
+  distribution: string;
+  position: [number, number];
+  stepCount: number;
+  acceptedCount: number;
+  divergentCount: number;
+  acceptanceRate: number;
+  config: { stepSize: number; numIntegrationSteps: number };
+  recentSamples: Array<{ x: number; y: number; accepted: boolean; divergent: boolean }>;
+}
+
+interface DebugStepResult {
+  accepted: boolean;
+  acceptanceProb: number;
+  position: [number, number];
+  energy?: number;
+  isDivergent?: boolean;
+}
+
+interface DebugConfig {
+  algorithm?: Algorithm;
+  stepSize?: number;
+  numSteps?: number;
+  distribution?: string;
+}
+
+// Last step info for debug API
+let lastStepResult: DebugStepResult | null = null;
+
 // Expose control interface to window for API control
 interface HMCVizAPI {
   play: () => void;
@@ -698,6 +739,131 @@ interface HMCVizAPI {
 };
 
 console.log('[HMC-VIZ] API exposed to window.__hmcViz');
+
+// Debug API for agentic debugging via command queue pattern
+interface HMCDebugAPI {
+  getState: () => DebugState;
+  step: () => DebugStepResult;
+  reset: () => { ok: true; position: [number, number] };
+  setConfig: (config: DebugConfig) => { stepSize: number; numIntegrationSteps: number; algorithm: Algorithm; distribution: string };
+}
+
+(window as unknown as { __hmcDebug: HMCDebugAPI }).__hmcDebug = {
+  getState: (): DebugState => {
+    const posArray = samplerState.position.ref.js() as number[];
+    return {
+      algorithm: currentAlgorithm,
+      distribution: currentDistribution.name,
+      position: [posArray[0]!, posArray[1]!],
+      stepCount: stepCounter,
+      acceptedCount,
+      divergentCount,
+      acceptanceRate: stepCounter > 0 ? acceptedCount / stepCounter : 0,
+      config: {
+        stepSize: parseFloat(stepSizeSlider.value),
+        numIntegrationSteps: parseInt(numStepsSlider.value, 10),
+      },
+      recentSamples: samples.slice(-20),
+    };
+  },
+  step: (): DebugStepResult => {
+    if (isPlaying) {
+      togglePlay(); // Pause first
+    }
+    performStep();
+    return lastStepResult!;
+  },
+  reset: (): { ok: true; position: [number, number] } => {
+    reset();
+    return { ok: true, position: currentDistribution.initialPosition as [number, number] };
+  },
+  setConfig: (config: DebugConfig) => {
+    if (config.algorithm !== undefined && config.algorithm !== currentAlgorithm) {
+      currentAlgorithm = config.algorithm;
+      algorithmSelect.value = config.algorithm;
+      syncAlgorithmUI();
+    }
+    if (config.distribution !== undefined) {
+      const key = Object.keys(distributions).find(
+        (k) => distributions[k as keyof typeof distributions]?.().name === config.distribution ||
+               k === config.distribution
+      );
+      if (key) {
+        currentDistribution = distributions[key as keyof typeof distributions]!();
+        distributionSelect.value = key;
+      }
+    }
+    if (config.stepSize !== undefined) {
+      stepSizeSlider.value = String(config.stepSize);
+      stepSizeValue.textContent = String(config.stepSize);
+    }
+    if (config.numSteps !== undefined) {
+      numStepsSlider.value = String(config.numSteps);
+      numStepsValue.textContent = String(config.numSteps);
+    }
+    buildSampler();
+    initializeState();
+    computeContours();
+    renderer.setBounds(currentDistribution.bounds);
+    render();
+    console.log('[HMC-VIZ] Config updated:', config);
+    return {
+      stepSize: parseFloat(stepSizeSlider.value),
+      numIntegrationSteps: parseInt(numStepsSlider.value, 10),
+      algorithm: currentAlgorithm,
+      distribution: currentDistribution.name,
+    };
+  },
+};
+
+console.log('[HMC-VIZ] Debug API exposed to window.__hmcDebug');
+
+// Debug command polling loop (only in dev mode)
+async function debugPollLoop(): Promise<void> {
+  if (import.meta.env.PROD) return;
+
+  while (true) {
+    try {
+      const res = await fetch('/__debug/poll');
+      const cmd = await res.json() as { id: string; type: string; payload?: unknown } | null;
+
+      if (cmd?.type) {
+        const api = (window as unknown as { __hmcDebug: HMCDebugAPI }).__hmcDebug;
+        let result: unknown;
+
+        switch (cmd.type) {
+          case 'getState':
+            result = api.getState();
+            break;
+          case 'step':
+            result = api.step();
+            break;
+          case 'reset':
+            result = api.reset();
+            break;
+          case 'setConfig':
+            result = api.setConfig(cmd.payload as DebugConfig);
+            break;
+          default:
+            result = { error: `Unknown command: ${cmd.type}` };
+        }
+
+        await fetch('/__debug/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: cmd.id, result }),
+        });
+      }
+    } catch {
+      // Ignore errors (server may not be available)
+    }
+
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+// Start polling loop
+debugPollLoop();
 
 // Set up HMR WebSocket handler for API control
 if (import.meta.hot) {

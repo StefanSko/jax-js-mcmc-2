@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
+import { debugApiPlugin } from './examples/visualization/debug-api';
 
 /**
  * Console Bridge Plugin
@@ -228,7 +229,7 @@ function apiControlPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [consoleBridgePlugin(), apiControlPlugin()],
+  plugins: [consoleBridgePlugin(), apiControlPlugin(), debugApiPlugin()],
   // Pass CONSOLE_BRIDGE env var to client as VITE_CONSOLE_BRIDGE
   define: {
     'import.meta.env.VITE_CONSOLE_BRIDGE': JSON.stringify(process.env.CONSOLE_BRIDGE === '1'),
