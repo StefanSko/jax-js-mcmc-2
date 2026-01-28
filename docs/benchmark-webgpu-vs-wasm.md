@@ -2,6 +2,9 @@
 
 This document validates JAX-JS's WebGPU performance claims and benchmarks the jax-js-mcmc-2 MCMC samplers on both backends.
 
+> **Status**: WASM benchmarks complete. **WebGPU benchmarks pending** - requires browser testing.
+> See [Contributing WebGPU Results](#contributing-webgpu-results) to help validate the claims.
+
 ## JAX-JS Performance Claims
 
 ### Official Claims from JAX-JS
@@ -90,11 +93,17 @@ From project documentation (`examples/visualization/README.md`):
 
 ![HMC Performance](../benchmarks/plots/hmc-performance.svg)
 
-## Expected WebGPU Speedup
+## WebGPU Performance (Pending)
+
+> **These are projections based on JAX-JS claims, not measured results.**
+>
+> To get real WebGPU numbers, see [Contributing WebGPU Results](#contributing-webgpu-results).
+
+### Projected WebGPU Speedup
 
 Based on JAX-JS claims (~2-5x speedup) and the nature of MCMC sampling:
 
-| Benchmark | WASM (iter/s) | Expected WebGPU (iter/s) | Expected Speedup |
+| Benchmark | WASM (iter/s) | Projected WebGPU (iter/s) | Projected Speedup |
 |-----------|---------------|-------------------------|------------------|
 | HMC-1D-Gaussian | 38.1 | ~40-50 | ~1.0-1.3x |
 | HMC-10D-Gaussian | 34.5 | ~50-80 | ~1.5-2.3x |
@@ -106,11 +115,11 @@ Based on JAX-JS claims (~2-5x speedup) and the nature of MCMC sampling:
 - Medium dimensions (10D): Moderate speedup from parallelism
 - High dimensions (50D+): Significant speedup from parallel gradient computation
 
-## Expected Speedup Chart (Simulated)
+### Projected Speedup Chart (Simulated Data)
 
 ![WebGPU Speedup](../benchmarks/plots/speedup.svg)
 
-> **Note**: The speedup chart above uses simulated data based on JAX-JS claims. Run the browser benchmark to get actual WebGPU results.
+> **Warning**: This chart uses **simulated data** based on JAX-JS claims, not actual measurements.
 
 ## Running the Benchmarks
 
@@ -170,6 +179,51 @@ Based on our analysis:
 3. **MCMC sampling benefits scale with dimension**: Higher-dimensional problems see greater GPU benefit due to increased parallelism in gradient computation
 
 4. **Browser is the sweet spot**: WebGPU's browser-first design means web-based MCMC applications can achieve near-native performance
+
+## Contributing WebGPU Results
+
+We need real WebGPU benchmark data to validate JAX-JS's performance claims. Here's how to contribute:
+
+### Step 1: Run the Browser Benchmark
+
+1. Clone this repository and install dependencies:
+   ```bash
+   git clone https://github.com/StefanSko/jax-js-mcmc-2.git
+   cd jax-js-mcmc-2
+   npm install
+   ```
+
+2. Start a local server:
+   ```bash
+   npx serve benchmarks
+   ```
+
+3. Open http://localhost:3000/benchmark-browser.html in a WebGPU-capable browser:
+   - **Chrome 113+** (recommended)
+   - **Edge 113+**
+   - **Firefox 121+** (with `dom.webgpu.enabled` flag)
+
+4. Click **"Run Both (Compare)"** to benchmark WASM and WebGPU side-by-side
+
+5. Click **"Download Results (JSON)"** when complete
+
+### Step 2: Submit Your Results
+
+Option A: Open a PR with your results file renamed to include your GPU:
+```
+benchmarks/results-webgpu-{gpu-model}.json
+```
+
+Option B: Open an issue with the JSON file attached and include:
+- GPU model (e.g., "NVIDIA RTX 4080", "Apple M3 Pro")
+- Browser and version
+- Operating system
+
+### What We're Looking For
+
+- Results from different GPU vendors (NVIDIA, AMD, Intel, Apple Silicon)
+- Results from different performance tiers (integrated vs discrete)
+- Any anomalies or unexpected behavior
 
 ## Files
 
