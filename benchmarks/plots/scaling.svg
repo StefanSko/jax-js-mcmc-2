@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+  <rect width="800" height="400" fill="white"/>
+
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Performance Scaling with Dimensionality</text>
+
+  <!-- Axis labels -->
+  <text x="20" y="200" text-anchor="middle" font-size="12" fill="#666" transform="rotate(-90, 20, 200)">Iterations per second</text>
+  <text x="380" y="385" text-anchor="middle" font-size="12" fill="#666">Dimensions (log scale)</text>
+
+  <!-- Axes -->
+  <line x1="80" y1="60" x2="80" y2="340" stroke="#333" stroke-width="1"/>
+  <line x1="80" y1="340" x2="680" y2="340" stroke="#333" stroke-width="1"/>
+
+  <line x1="80" y1="340" x2="680" y2="340" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="284" x2="680" y2="284" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="228" x2="680" y2="228" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="172" x2="680" y2="172" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="116" x2="680" y2="116" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="60" x2="680" y2="60" stroke="#e0e0e0" stroke-width="1"/><path d="M 170.11428993421276 161.80927228179593 L 391.74422388946437 228.63079517612246 L 391.74422388946437 117.26159035224492 L 591.1665818965954 302.84723327075443 L 591.1665818965954 265.783561905368 L 680 322.1809272281796" fill="none" stroke="#4285f4" stroke-width="2"/><path d="M 170.11428993421276 191.4780284468769 L 391.74422388946437 161.80927228179593 L 391.74422388946437 85.4545454545455 L 591.1665818965954 241.01505075253763 L 591.1665818965954 191.4780284468769 L 680 265.783561905368" fill="none" stroke="#34a853" stroke-width="2"/>
+  <circle cx="170.11428993421276" cy="161.80927228179593" r="4" fill="#4285f4"/><circle cx="391.74422388946437" cy="228.63079517612246" r="4" fill="#4285f4"/><circle cx="391.74422388946437" cy="117.26159035224492" r="4" fill="#4285f4"/><circle cx="591.1665818965954" cy="302.84723327075443" r="4" fill="#4285f4"/><circle cx="591.1665818965954" cy="265.783561905368" r="4" fill="#4285f4"/><circle cx="680" cy="322.1809272281796" r="4" fill="#4285f4"/><circle cx="170.11428993421276" cy="191.4780284468769" r="4" fill="#34a853"/><circle cx="391.74422388946437" cy="161.80927228179593" r="4" fill="#34a853"/><circle cx="391.74422388946437" cy="85.4545454545455" r="4" fill="#34a853"/><circle cx="591.1665818965954" cy="241.01505075253763" r="4" fill="#34a853"/><circle cx="591.1665818965954" cy="191.4780284468769" r="4" fill="#34a853"/><circle cx="680" cy="265.783561905368" r="4" fill="#34a853"/>
+  <text x="70" y="344" text-anchor="end" font-size="11" fill="#666">0</text><text x="70" y="288" text-anchor="end" font-size="11" fill="#666">629</text><text x="70" y="232" text-anchor="end" font-size="11" fill="#666">1257</text><text x="70" y="176" text-anchor="end" font-size="11" fill="#666">1886</text><text x="70" y="120" text-anchor="end" font-size="11" fill="#666">2514</text><text x="70" y="64" text-anchor="end" font-size="11" fill="#666">3143</text><text x="170.11428993421276" y="360" text-anchor="middle" font-size="11" fill="#333">1D</text><text x="391.74422388946437" y="360" text-anchor="middle" font-size="11" fill="#333">10D</text><text x="680" y="360" text-anchor="middle" font-size="11" fill="#333">100D</text>
+  
+    <line x1="690" y1="67" x2="705" y2="67" stroke="#4285f4" stroke-width="2"/>
+    <circle cx="697.5" cy="67" r="3" fill="#4285f4"/>
+    <text x="710" y="72" font-size="12" fill="#333">WASM</text>
+
+    <line x1="690" y1="92" x2="705" y2="92" stroke="#34a853" stroke-width="2"/>
+    <circle cx="697.5" cy="92" r="3" fill="#34a853"/>
+    <text x="710" y="97" font-size="12" fill="#333">WebGPU</text>
+  
+</svg>
