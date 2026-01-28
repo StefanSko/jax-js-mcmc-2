@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+  <rect width="800" height="400" fill="white"/>
+
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">MCMC Sampler Throughput: WebGPU vs WASM</text>
+
+  <!-- Y-axis label -->
+  <text x="20" y="200" text-anchor="middle" font-size="12" fill="#666" transform="rotate(-90, 20, 200)">Iterations per second</text>
+
+  <!-- Axes -->
+  <line x1="80" y1="60" x2="80" y2="320" stroke="#333" stroke-width="1"/>
+  <line x1="80" y1="320" x2="680" y2="320" stroke="#333" stroke-width="1"/>
+
+  <line x1="80" y1="320" x2="680" y2="320" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="268" x2="680" y2="268" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="216" x2="680" y2="216" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="164" x2="680" y2="164" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="112" x2="680" y2="112" stroke="#e0e0e0" stroke-width="1"/><line x1="80" y1="60" x2="680" y2="60" stroke="#e0e0e0" stroke-width="1"/><rect x="94.66666666666666" y="154.5371814045248" width="33.333333333333336" height="165.4628185954752" fill="#4285f4" rx="2"/><text x="111.33333333333333" y="149.5371814045248" text-anchor="middle" font-size="10" fill="#4285f4">2000</text><rect x="132" y="182.0867407006714" width="33.333333333333336" height="137.9132592993286" fill="#34a853" rx="2"/><text x="148.66666666666666" y="177.0867407006714" text-anchor="middle" font-size="10" fill="#34a853">1667</text><rect x="194.66666666666666" y="216.585738377828" width="33.333333333333336" height="103.414261622172" fill="#4285f4" rx="2"/><text x="211.33333333333334" y="211.585738377828" text-anchor="middle" font-size="10" fill="#4285f4">1250</text><rect x="232" y="154.5371814045248" width="33.333333333333336" height="165.4628185954752" fill="#34a853" rx="2"/><text x="248.66666666666666" y="149.5371814045248" text-anchor="middle" font-size="10" fill="#34a853">2000</text><rect x="294.6666666666667" y="285.5010023228434" width="33.333333333333336" height="34.49899767715658" fill="#4285f4" rx="2"/><text x="311.3333333333333" y="280.5010023228434" text-anchor="middle" font-size="10" fill="#4285f4">417</text><rect x="332" y="228.08540427021353" width="33.333333333333336" height="91.91459572978648" fill="#34a853" rx="2"/><text x="348.6666666666667" y="223.08540427021353" text-anchor="middle" font-size="10" fill="#34a853">1111</text><rect x="394.6666666666667" y="303.45371814045245" width="33.333333333333336" height="16.54628185954752" fill="#4285f4" rx="2"/><text x="411.3333333333333" y="298.45371814045245" text-anchor="middle" font-size="10" fill="#4285f4">200</text><rect x="432" y="251.08473605498457" width="33.333333333333336" height="68.91526394501543" fill="#34a853" rx="2"/><text x="448.6666666666667" y="246.08473605498457" text-anchor="middle" font-size="10" fill="#34a853">833</text><rect x="494.6666666666667" y="113.17147675565599" width="33.333333333333336" height="206.828523244344" fill="#4285f4" rx="2"/><text x="511.33333333333337" y="108.17147675565599" text-anchor="middle" font-size="10" fill="#4285f4">2500</text><rect x="532" y="83.63636363636365" width="33.333333333333336" height="236.36363636363635" fill="#34a853" rx="2"/><text x="548.6666666666666" y="78.63636363636365" text-anchor="middle" font-size="10" fill="#34a853">2857</text><rect x="594.6666666666666" y="251.08473605498457" width="33.333333333333336" height="68.91526394501543" fill="#4285f4" rx="2"/><text x="611.3333333333334" y="246.08473605498457" text-anchor="middle" font-size="10" fill="#4285f4">833</text><rect x="632" y="182.0867407006714" width="33.333333333333336" height="137.9132592993286" fill="#34a853" rx="2"/><text x="648.6666666666666" y="177.0867407006714" text-anchor="middle" font-size="10" fill="#34a853">1667</text>
+  <text x="70" y="324" text-anchor="end" font-size="11" fill="#666">0</text><text x="70" y="272" text-anchor="end" font-size="11" fill="#666">629</text><text x="70" y="220" text-anchor="end" font-size="11" fill="#666">1257</text><text x="70" y="168" text-anchor="end" font-size="11" fill="#666">1886</text><text x="70" y="116" text-anchor="end" font-size="11" fill="#666">2514</text><text x="70" y="64" text-anchor="end" font-size="11" fill="#666">3143</text><text x="130" y="340" text-anchor="middle" font-size="11" fill="#333">HMC-1D</text><text x="230" y="340" text-anchor="middle" font-size="11" fill="#333">HMC-10D</text><text x="330" y="340" text-anchor="middle" font-size="11" fill="#333">HMC-50D</text><text x="430" y="340" text-anchor="middle" font-size="11" fill="#333">HMC-100D</text><text x="530" y="340" text-anchor="middle" font-size="11" fill="#333">RWM-10D</text><text x="630" y="340" text-anchor="middle" font-size="11" fill="#333">RWM-50D</text>
+  
+    <rect x="690" y="60" width="15" height="15" fill="#4285f4" rx="2"/>
+    <text x="710" y="72" font-size="12" fill="#333">WASM</text>
+    <rect x="690" y="85" width="15" height="15" fill="#34a853" rx="2"/>
+    <text x="710" y="97" font-size="12" fill="#333">WebGPU</text>
+  
+</svg>

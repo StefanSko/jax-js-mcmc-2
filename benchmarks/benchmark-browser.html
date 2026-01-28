@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JAX-JS MCMC Benchmark - WebGPU vs WASM</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #333; }
+    .status {
+      padding: 10px 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .status.info { background: #cce5ff; color: #004085; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: white;
+      transition: background 0.2s;
+    }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #5a6268; }
+    select {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .results {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th { background: #f8f9fa; font-weight: 600; }
+    tr:hover { background: #f5f5f5; }
+    .speedup { font-weight: bold; }
+    .speedup.positive { color: #28a745; }
+    .speedup.negative { color: #dc3545; }
+    .chart-container {
+      height: 400px;
+      margin: 20px 0;
+    }
+    .progress {
+      height: 20px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #007bff;
+      transition: width 0.3s;
+    }
+    #log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .log-time { color: #6a9955; }
+    .log-info { color: #569cd6; }
+    .log-result { color: #dcdcaa; }
+    .log-error { color: #f14c4c; }
+  </style>
+</head>
+<body>
+  <h1>JAX-JS MCMC Benchmark</h1>
+  <p>Compare WebGPU vs WASM backend performance for HMC and RWM samplers.</p>
+
+  <div id="device-status" class="status info">Checking device availability...</div>
+
+  <div class="controls">
+    <select id="config-select">
+      <option value="quick">Quick Test (3 configs)</option>
+      <option value="default">Default Suite (10 configs)</option>
+      <option value="scaling">Scaling Test (7 configs)</option>
+      <option value="all">Full Suite (17 configs)</option>
+    </select>
+    <button id="run-wasm" disabled>Run WASM</button>
+    <button id="run-webgpu" disabled>Run WebGPU</button>
+    <button id="run-both" disabled>Run Both (Compare)</button>
+    <button id="download" class="secondary" disabled>Download Results (JSON)</button>
+  </div>
+
+  <div class="progress" style="display: none;">
+    <div class="progress-bar" style="width: 0%"></div>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="results" style="display: none;">
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>Dims</th>
+          <th>WASM (iter/s)</th>
+          <th>WebGPU (iter/s)</th>
+          <th>Speedup</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="chart-container" id="chart" style="display: none;"></div>
+
+  <script type="module">
+    import { numpy as np, random, init, defaultDevice } from 'https://esm.sh/@jax-js/jax@0.1.0';
+
+    // Benchmark configurations
+    const QUICK_CONFIGS = [
+      { name: 'HMC-1D', sampler: 'hmc', dimensions: 1, iterations: 500, warmup: 50, stepSize: 0.2, numIntegrationSteps: 10 },
+      { name: 'HMC-10D', sampler: 'hmc', dimensions: 10, iterations: 500, warmup: 50, stepSize: 0.1, numIntegrationSteps: 10 },
+      { name: 'RWM-10D', sampler: 'rwm', dimensions: 10, iterations: 500, warmup: 50, stepSize: 0.5 },
+    ];
+
+    const DEFAULT_CONFIGS = [
+      { name: 'HMC-1D-Gaussian', sampler: 'hmc', dimensions: 1, iterations: 1000, warmup: 100, stepSize: 0.2, numIntegrationSteps: 10 },
+      { name: 'HMC-10D-Gaussian', sampler: 'hmc', dimensions: 10, iterations: 1000, warmup: 100, stepSize: 0.1, numIntegrationSteps: 10 },
+      { name: 'HMC-50D-Gaussian', sampler: 'hmc', dimensions: 50, iterations: 500, warmup: 50, stepSize: 0.05, numIntegrationSteps: 20 },
+      { name: 'HMC-100D-Gaussian', sampler: 'hmc', dimensions: 100, iterations: 500, warmup: 50, stepSize: 0.03, numIntegrationSteps: 30 },
+      { name: 'RWM-1D-Gaussian', sampler: 'rwm', dimensions: 1, iterations: 1000, warmup: 100, stepSize: 2.0 },
+      { name: 'RWM-10D-Gaussian', sampler: 'rwm', dimensions: 10, iterations: 1000, warmup: 100, stepSize: 0.5 },
+      { name: 'RWM-50D-Gaussian', sampler: 'rwm', dimensions: 50, iterations: 500, warmup: 50, stepSize: 0.2 },
+    ];
+
+    const SCALING_CONFIGS = [1, 5, 10, 20, 50, 100, 200].map(dim => ({
+      name: `HMC-${dim}D`,
+      sampler: 'hmc',
+      dimensions: dim,
+      iterations: 500,
+      warmup: 50,
+      stepSize: Math.max(0.01, 0.2 / Math.sqrt(dim)),
+      numIntegrationSteps: Math.min(50, 10 + Math.floor(dim / 5)),
+    }));
+
+    // State
+    let availableDevices = [];
+    let results = { wasm: {}, webgpu: {} };
+    let isRunning = false;
+
+    // DOM elements
+    const statusEl = document.getElementById('device-status');
+    const logEl = document.getElementById('log');
+    const progressEl = document.querySelector('.progress');
+    const progressBar = document.querySelector('.progress-bar');
+    const resultsEl = document.querySelector('.results');
+    const resultsBody = document.querySelector('#results-table tbody');
+    const chartEl = document.getElementById('chart');
+    const configSelect = document.getElementById('config-select');
+    const runWasmBtn = document.getElementById('run-wasm');
+    const runWebgpuBtn = document.getElementById('run-webgpu');
+    const runBothBtn = document.getElementById('run-both');
+    const downloadBtn = document.getElementById('download');
+
+    function log(message, type = 'info') {
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateProgress(current, total, message) {
+      progressEl.style.display = 'block';
+      progressBar.style.width = `${(current / total) * 100}%`;
+      if (message) log(message, 'info');
+    }
+
+    function getConfigs() {
+      const choice = configSelect.value;
+      switch (choice) {
+        case 'quick': return QUICK_CONFIGS;
+        case 'scaling': return SCALING_CONFIGS;
+        case 'all': return [...DEFAULT_CONFIGS, ...SCALING_CONFIGS];
+        default: return DEFAULT_CONFIGS;
+      }
+    }
+
+    // Gaussian log density
+    function createLogDensity(dimensions) {
+      return (q) => q.ref.mul(q).mul(-0.5).sum();
+    }
+
+    // Simple HMC implementation for browser
+    function createHMCSampler(logdensityFn, config) {
+      const { dimensions, stepSize, numIntegrationSteps } = config;
+      const invMass = np.ones([dimensions]);
+
+      function init(position) {
+        const logdensity = logdensityFn(position.ref);
+        const grad = np.zeros([dimensions]); // Simplified - real impl uses grad()
+        return { position, logdensity, logdensityGrad: grad };
+      }
+
+      function step(key, state) {
+        // Simplified HMC step - just demonstrate the computation pattern
+        const momentum = random.normal(key, [dimensions]);
+        let pos = state.position.ref;
+        let mom = momentum.ref;
+
+        // Leapfrog integration (simplified)
+        for (let i = 0; i < numIntegrationSteps; i++) {
+          // Half step momentum
+          const grad = pos.ref.mul(-1); // Approximate gradient for Gaussian
+          mom = mom.add(grad.mul(stepSize / 2));
+
+          // Full step position
+          pos = pos.add(mom.ref.mul(invMass.ref).mul(stepSize));
+
+          // Half step momentum
+          const grad2 = pos.ref.mul(-1);
+          mom = mom.add(grad2.mul(stepSize / 2));
+        }
+
+        const newLogdensity = logdensityFn(pos.ref);
+
+        // Always accept for simplicity in benchmark
+        state.position.dispose();
+        state.logdensity.dispose();
+        state.logdensityGrad.dispose();
+
+        const info = {
+          momentum: mom,
+          acceptanceProb: np.array([1.0]),
+          isAccepted: np.array([1]),
+          isDivergent: np.array([0]),
+          energy: np.array([0.0]),
+        };
+
+        return [{ position: pos, logdensity: newLogdensity, logdensityGrad: np.zeros([dimensions]) }, info];
+      }
+
+      return { init, step };
+    }
+
+    // RWM sampler for browser
+    function createRWMSampler(logdensityFn, config) {
+      const { dimensions, stepSize } = config;
+      const invMass = np.ones([dimensions]);
+
+      function init(position) {
+        const logdensity = logdensityFn(position.ref);
+        const grad = np.zeros([dimensions]);
+        return { position, logdensity, logdensityGrad: grad };
+      }
+
+      function step(key, state) {
+        const noise = random.normal(key, [dimensions]);
+        const proposal = state.position.ref.add(noise.mul(invMass.ref).mul(stepSize));
+        const proposalLogdensity = logdensityFn(proposal.ref);
+
+        // Simple accept (for benchmark)
+        state.position.dispose();
+        state.logdensity.dispose();
+        state.logdensityGrad.dispose();
+
+        const info = {
+          momentum: np.zeros([dimensions]),
+          acceptanceProb: np.array([1.0]),
+          isAccepted: np.array([1]),
+        };
+
+        return [{ position: proposal, logdensity: proposalLogdensity, logdensityGrad: np.zeros([dimensions]) }, info];
+      }
+
+      return { init, step };
+    }
+
+    async function runBenchmark(config, backend) {
+      const { name, sampler, dimensions, iterations, warmup } = config;
+      const logdensityFn = createLogDensity(dimensions);
+
+      const samplerObj = sampler === 'hmc'
+        ? createHMCSampler(logdensityFn, config)
+        : createRWMSampler(logdensityFn, config);
+
+      let state = samplerObj.init(np.zeros([dimensions]));
+
+      // Warmup
+      for (let i = 0; i < warmup; i++) {
+        const key = random.key(i);
+        const [newState, info] = samplerObj.step(key, state);
+        info.momentum.dispose();
+        info.acceptanceProb.dispose();
+        info.isAccepted.dispose();
+        if (info.isDivergent) info.isDivergent.dispose();
+        if (info.energy) info.energy.dispose();
+        state = newState;
+      }
+
+      // Timed section
+      const startTime = performance.now();
+
+      for (let i = 0; i < iterations; i++) {
+        const key = random.key(warmup + i);
+        const [newState, info] = samplerObj.step(key, state);
+        info.momentum.dispose();
+        info.acceptanceProb.dispose();
+        info.isAccepted.dispose();
+        if (info.isDivergent) info.isDivergent.dispose();
+        if (info.energy) info.energy.dispose();
+        state = newState;
+      }
+
+      const totalTime = performance.now() - startTime;
+
+      // Cleanup
+      state.position.dispose();
+      state.logdensity.dispose();
+      state.logdensityGrad.dispose();
+
+      return {
+        name,
+        backend,
+        dimensions,
+        iterations,
+        totalTime,
+        iterationsPerSecond: (iterations / totalTime) * 1000,
+        avgTimePerIteration: totalTime / iterations,
+      };
+    }
+
+    async function runSuite(backend) {
+      const configs = getConfigs();
+      log(`Starting ${backend.toUpperCase()} benchmark suite with ${configs.length} configurations`, 'info');
+
+      defaultDevice(backend);
+      const suiteResults = [];
+
+      for (let i = 0; i < configs.length; i++) {
+        const config = configs[i];
+        updateProgress(i, configs.length, `Running ${config.name} on ${backend}...`);
+
+        try {
+          const result = await runBenchmark(config, backend);
+          suiteResults.push(result);
+          results[backend][config.name] = result;
+          log(`${config.name}: ${result.iterationsPerSecond.toFixed(1)} iter/s`, 'result');
+        } catch (e) {
+          log(`Error in ${config.name}: ${e.message}`, 'error');
+        }
+      }
+
+      updateProgress(configs.length, configs.length, `${backend.toUpperCase()} suite complete`);
+      return suiteResults;
+    }
+
+    function updateResultsTable() {
+      resultsBody.innerHTML = '';
+      resultsEl.style.display = 'block';
+
+      const allNames = new Set([
+        ...Object.keys(results.wasm),
+        ...Object.keys(results.webgpu),
+      ]);
+
+      for (const name of allNames) {
+        const wasm = results.wasm[name];
+        const webgpu = results.webgpu[name];
+
+        const row = document.createElement('tr');
+        const wasmSpeed = wasm ? wasm.iterationsPerSecond.toFixed(1) : '-';
+        const webgpuSpeed = webgpu ? webgpu.iterationsPerSecond.toFixed(1) : '-';
+
+        let speedup = '-';
+        let speedupClass = '';
+        if (wasm && webgpu) {
+          const ratio = webgpu.iterationsPerSecond / wasm.iterationsPerSecond;
+          speedup = ratio.toFixed(2) + 'x';
+          speedupClass = ratio > 1 ? 'positive' : 'negative';
+        }
+
+        row.innerHTML = `
+          <td>${name}</td>
+          <td>${wasm?.dimensions ?? webgpu?.dimensions ?? '-'}</td>
+          <td>${wasmSpeed}</td>
+          <td>${webgpuSpeed}</td>
+          <td class="speedup ${speedupClass}">${speedup}</td>
+        `;
+        resultsBody.appendChild(row);
+      }
+
+      downloadBtn.disabled = false;
+    }
+
+    function downloadResults() {
+      const data = {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        results,
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'jax-js-mcmc-benchmark-results.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Initialize
+    async function initialize() {
+      try {
+        log('Initializing JAX-JS...', 'info');
+        availableDevices = await init();
+        log(`Available devices: ${availableDevices.join(', ')}`, 'info');
+
+        const hasWasm = availableDevices.includes('wasm');
+        const hasWebgpu = availableDevices.includes('webgpu');
+
+        if (hasWasm && hasWebgpu) {
+          statusEl.className = 'status success';
+          statusEl.textContent = 'Both WASM and WebGPU available - full comparison possible!';
+          runBothBtn.disabled = false;
+        } else if (hasWebgpu) {
+          statusEl.className = 'status success';
+          statusEl.textContent = 'WebGPU available';
+        } else if (hasWasm) {
+          statusEl.className = 'status info';
+          statusEl.textContent = 'Only WASM available - WebGPU not supported in this browser';
+        } else {
+          statusEl.className = 'status error';
+          statusEl.textContent = 'No compute backends available!';
+          return;
+        }
+
+        runWasmBtn.disabled = !hasWasm;
+        runWebgpuBtn.disabled = !hasWebgpu;
+
+      } catch (e) {
+        statusEl.className = 'status error';
+        statusEl.textContent = `Initialization failed: ${e.message}`;
+        log(`Error: ${e.message}`, 'error');
+      }
+    }
+
+    // Event handlers
+    runWasmBtn.addEventListener('click', async () => {
+      if (isRunning) return;
+      isRunning = true;
+      runWasmBtn.disabled = runWebgpuBtn.disabled = runBothBtn.disabled = true;
+      await runSuite('wasm');
+      updateResultsTable();
+      isRunning = false;
+      runWasmBtn.disabled = !availableDevices.includes('wasm');
+      runWebgpuBtn.disabled = !availableDevices.includes('webgpu');
+      runBothBtn.disabled = !(availableDevices.includes('wasm') && availableDevices.includes('webgpu'));
+    });
+
+    runWebgpuBtn.addEventListener('click', async () => {
+      if (isRunning) return;
+      isRunning = true;
+      runWasmBtn.disabled = runWebgpuBtn.disabled = runBothBtn.disabled = true;
+      await runSuite('webgpu');
+      updateResultsTable();
+      isRunning = false;
+      runWasmBtn.disabled = !availableDevices.includes('wasm');
+      runWebgpuBtn.disabled = !availableDevices.includes('webgpu');
+      runBothBtn.disabled = !(availableDevices.includes('wasm') && availableDevices.includes('webgpu'));
+    });
+
+    runBothBtn.addEventListener('click', async () => {
+      if (isRunning) return;
+      isRunning = true;
+      runWasmBtn.disabled = runWebgpuBtn.disabled = runBothBtn.disabled = true;
+      await runSuite('wasm');
+      await runSuite('webgpu');
+      updateResultsTable();
+      isRunning = false;
+      runWasmBtn.disabled = !availableDevices.includes('wasm');
+      runWebgpuBtn.disabled = !availableDevices.includes('webgpu');
+      runBothBtn.disabled = !(availableDevices.includes('wasm') && availableDevices.includes('webgpu'));
+    });
+
+    downloadBtn.addEventListener('click', downloadResults);
+
+    initialize();
+  </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+{
+  "backend": "wasm",
+  "timestamp": "2026-01-28T20:27:47.036Z",
+  "platform": "linux",
+  "nodeVersion": "v22.22.0",
+  "results": [
+    {
+      "config": {
+        "name": "HMC-1D-Gaussian",
+        "sampler": "hmc",
+        "dimensions": 1,
+        "iterations": 500,
+        "warmup": 50,
+        "distribution": "gaussian",
+        "stepSize": 0.2,
+        "numIntegrationSteps": 10
+      },
+      "backend": "wasm",
+      "totalTime": 13138.629632,
+      "iterationsPerSecond": 38.055719203943234,
+      "avgTimePerIteration": 26.277259264,
+      "memoryUsedMB": 26.50927734375,
+      "timestamp": "2026-01-28T20:27:09.096Z"
+    },
+    {
+      "config": {
+        "name": "HMC-10D-Gaussian",
+        "sampler": "hmc",
+        "dimensions": 10,
+        "iterations": 500,
+        "warmup": 50,
+        "distribution": "gaussian",
+        "stepSize": 0.1,
+        "numIntegrationSteps": 10
+      },
+      "backend": "wasm",
+      "totalTime": 14508.360921000001,
+      "iterationsPerSecond": 34.462886794901785,
+      "avgTimePerIteration": 29.016721842000003,
+      "memoryUsedMB": 27.82947540283203,
+      "timestamp": "2026-01-28T20:27:23.776Z"
+    },
+    {
+      "config": {
+        "name": "HMC-50D-Gaussian",
+        "sampler": "hmc",
+        "dimensions": 50,
+        "iterations": 300,
+        "warmup": 30,
+        "distribution": "gaussian",
+        "stepSize": 0.05,
+        "numIntegrationSteps": 20
+      },
+      "backend": "wasm",
+      "totalTime": 6674.143189999999,
+      "iterationsPerSecond": 44.949590001229815,
+      "avgTimePerIteration": 22.247143966666663,
+      "memoryUsedMB": 27.00135040283203,
+      "timestamp": "2026-01-28T20:27:30.601Z"
+    },
+    {
+      "config": {
+        "name": "HMC-100D-Gaussian",
+        "sampler": "hmc",
+        "dimensions": 100,
+        "iterations": 200,
+        "warmup": 20,
+        "distribution": "gaussian",
+        "stepSize": 0.03,
+        "numIntegrationSteps": 30
+      },
+      "backend": "wasm",
+      "totalTime": 4121.2301210000005,
+      "iterationsPerSecond": 48.52919980878689,
+      "avgTimePerIteration": 20.606150605000003,
+      "memoryUsedMB": 27.314437866210938,
+      "timestamp": "2026-01-28T20:27:34.873Z"
+    },
+    {
+      "config": {
+        "name": "RWM-1D-Gaussian",
+        "sampler": "rwm",
+        "dimensions": 1,
+        "iterations": 500,
+        "warmup": 50,
+        "distribution": "gaussian",
+        "stepSize": 2
+      },
+      "backend": "wasm",
+      "totalTime": 4883.724438000005,
+      "iterationsPerSecond": 102.38087884515475,
+      "avgTimePerIteration": 9.76744887600001,
+      "memoryUsedMB": 25.02228546142578,
+      "timestamp": "2026-01-28T20:27:39.856Z"
+    },
+    {
+      "config": {
+        "name": "RWM-10D-Gaussian",
+        "sampler": "rwm",
+        "dimensions": 10,
+        "iterations": 500,
+        "warmup": 50,
+        "distribution": "gaussian",
+        "stepSize": 0.5
+      },
+      "backend": "wasm",
+      "totalTime": 5260.960071000001,
+      "iterationsPerSecond": 95.03968729132744,
+      "avgTimePerIteration": 10.521920142000003,
+      "memoryUsedMB": 25.112411499023438,
+      "timestamp": "2026-01-28T20:27:45.202Z"
+    },
+    {
+      "config": {
+        "name": "RWM-50D-Gaussian",
+        "sampler": "rwm",
+        "dimensions": 50,
+        "iterations": 300,
+        "warmup": 30,
+        "distribution": "gaussian",
+        "stepSize": 0.2
+      },
+      "backend": "wasm",
+      "totalTime": 1755.6924729999955,
+      "iterationsPerSecond": 170.8727494214192,
+      "avgTimePerIteration": 5.852308243333319,
+      "memoryUsedMB": 20.43115997314453,
+      "timestamp": "2026-01-28T20:27:47.035Z"
+    }
+  ]
+}
