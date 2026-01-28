@@ -42,11 +42,9 @@ export class RWMBuilder {
     const step = fullConfig.jitStep ? jitKernel(kernel) : kernel;
 
     const init = (position: Array): RWMState => {
-      const positionRef = position.ref;
-      position.dispose();
       return {
-        position: positionRef,
-        logdensity: this.logdensityFn(positionRef.ref),
+        position: position.ref,
+        logdensity: this.logdensityFn(position),
       };
     };
 

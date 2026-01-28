@@ -78,18 +78,16 @@ const infoStatus = document.getElementById('info-status') as HTMLSpanElement;
  * Dispose sampler info arrays to prevent memory leaks.
  */
 function disposeInfo(info: SamplerInfo): void {
-  if ('momentum' in info) {
-    info.momentum.dispose();
-    info.acceptanceProb.dispose();
-    info.isAccepted.dispose();
-    info.isDivergent.dispose();
-    info.energy.dispose();
-    return;
-  }
-
   info.acceptanceProb.dispose();
   info.isAccepted.dispose();
-  info.proposedPosition.dispose();
+
+  if ('momentum' in info) {
+    info.momentum.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+  } else {
+    info.proposedPosition.dispose();
+  }
 }
 
 /**
@@ -326,6 +324,10 @@ function performStep(): void {
   render();
 }
 
+function formatDivergentCount(count: number): string {
+  return currentAlgorithm === 'hmc' ? String(count) : 'N/A';
+}
+
 /**
  * Update statistics display.
  */
@@ -335,9 +337,7 @@ function updateStats(): void {
   if (samples.length > 0) {
     const rate = (acceptedCount / samples.length) * 100;
     statAcceptance.textContent = `${rate.toFixed(1)}%`;
-    statDivergent.textContent = currentAlgorithm === 'hmc'
-      ? String(divergentCount)
-      : 'N/A';
+    statDivergent.textContent = formatDivergentCount(divergentCount);
 
     const meanX = samples.reduce((sum, s) => sum + s.x, 0) / samples.length;
     const meanY = samples.reduce((sum, s) => sum + s.y, 0) / samples.length;
@@ -345,7 +345,7 @@ function updateStats(): void {
     statMeanY.textContent = meanY.toFixed(3);
   } else {
     statAcceptance.textContent = '-';
-    statDivergent.textContent = currentAlgorithm === 'hmc' ? '0' : 'N/A';
+    statDivergent.textContent = formatDivergentCount(0);
     statMeanX.textContent = '-';
     statMeanY.textContent = '-';
   }
