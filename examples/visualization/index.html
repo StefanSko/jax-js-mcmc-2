@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HMC Visualization - JAX-JS</title>
+  <title>HMC/RWM Visualization - JAX-JS</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -181,14 +181,15 @@
     h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
     h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
     .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="canvas-area">
-      <h1>HMC Visualization</h1>
+      <h1>HMC + RWM Visualization</h1>
       <p class="subtitle">
-        Hamiltonian Monte Carlo sampling with JAX-JS
+        Hamiltonian Monte Carlo and Random Walk Metropolis sampling with JAX-JS
       </p>
 
       <div class="canvas-wrapper">
@@ -244,6 +245,14 @@
       </div>
 
       <div class="control-group">
+        <label for="algorithm">Algorithm</label>
+        <select id="algorithm">
+          <option value="hmc" selected>HMC</option>
+          <option value="rwm">Random Walk Metropolis</option>
+        </select>
+      </div>
+
+      <div class="control-group">
         <label class="checkbox-label">
           <input type="checkbox" id="show-true-params" checked>
           Show True Parameters
@@ -257,7 +266,7 @@
         <div class="value-display" id="step-size-value">0.15</div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group" id="num-steps-group">
         <label for="num-steps">Integration Steps (L)</label>
         <input type="range" id="num-steps" min="1" max="30" step="1" value="10">
         <div class="value-display" id="num-steps-value">10</div>

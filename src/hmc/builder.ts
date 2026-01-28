@@ -88,7 +88,10 @@ export class HMCBuilder {
         },
       ];
     };
-    const stepJit = fullConfig.jitStep ? jit(stepArrays) : null;
+    const jitKernel = jit as unknown as <T extends (...args: any[]) => any>(
+      fn: T
+    ) => T;
+    const stepJit = fullConfig.jitStep ? jitKernel(stepArrays) : null;
     const step = fullConfig.jitStep
       ? (key: Array, state: HMCState): [HMCState, HMCInfo] => {
           const [newState, info] = stepJit!(key, state);

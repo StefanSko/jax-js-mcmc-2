@@ -8,15 +8,24 @@
 import './console-bridge';
 
 import { numpy as np, random, init as jaxInit, defaultDevice } from '@jax-js/jax';
-import { HMC, type HMCInfo, type HMCState } from '../../src';
+import { HMC, RWM, type HMCInfo, type HMCState, type RWMInfo, type RWMState } from '../../src';
 import { distributions, type Distribution } from './distributions';
 import { computeDensityGrid, computeContourLevels, extractContours, type ContourLine } from './contour';
 import { CanvasRenderer, type Sample } from './renderer';
 
 // State
 let currentDistribution: Distribution;
-let sampler: ReturnType<typeof HMC>['build'] extends () => infer R ? R : never;
-let hmcState: HMCState;
+type Algorithm = 'hmc' | 'rwm';
+type SamplerState = HMCState | RWMState;
+type SamplerInfo = HMCInfo | RWMInfo;
+type Sampler = {
+  init: (position: np.Array) => SamplerState;
+  step: (key: np.Array, state: SamplerState) => [SamplerState, SamplerInfo];
+};
+
+let currentAlgorithm: Algorithm = 'hmc';
+let sampler: Sampler;
+let samplerState: SamplerState;
 let samples: Sample[] = [];
 let contours: ContourLine[] = [];
 let renderer: CanvasRenderer;
@@ -32,9 +41,11 @@ let prevY: number | undefined;
 // UI Elements
 const canvas = document.getElementById('hmc-canvas') as HTMLCanvasElement;
 const loadingEl = document.getElementById('loading') as HTMLDivElement;
+const algorithmSelect = document.getElementById('algorithm') as HTMLSelectElement;
 const distributionSelect = document.getElementById('distribution') as HTMLSelectElement;
 const stepSizeSlider = document.getElementById('step-size') as HTMLInputElement;
 const stepSizeValue = document.getElementById('step-size-value') as HTMLSpanElement;
+const numStepsGroup = document.getElementById('num-steps-group') as HTMLDivElement;
 const numStepsSlider = document.getElementById('num-steps') as HTMLInputElement;
 const numStepsValue = document.getElementById('num-steps-value') as HTMLSpanElement;
 const speedSlider = document.getElementById('speed') as HTMLInputElement;
@@ -64,14 +75,19 @@ const infoEnergy = document.getElementById('info-energy') as HTMLSpanElement;
 const infoStatus = document.getElementById('info-status') as HTMLSpanElement;
 
 /**
- * Dispose HMCInfo arrays to prevent memory leaks.
+ * Dispose sampler info arrays to prevent memory leaks.
  */
-function disposeInfo(info: HMCInfo): void {
-  info.momentum.dispose();
+function disposeInfo(info: SamplerInfo): void {
   info.acceptanceProb.dispose();
   info.isAccepted.dispose();
-  info.isDivergent.dispose();
-  info.energy.dispose();
+
+  if ('momentum' in info) {
+    info.momentum.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+  } else {
+    info.proposedPosition.dispose();
+  }
 }
 
 /**
@@ -170,36 +186,52 @@ function computeContours(): void {
   contours = extractContours(grid, xs, ys, levels);
 }
 
+type SamplerConfig = { stepSize: number; numIntegrationSteps: number };
+
+function createSampler(
+  algorithm: Algorithm,
+  logdensityFn: (q: np.Array) => np.Array,
+  config: SamplerConfig
+): Sampler {
+  if (algorithm === 'rwm') {
+    return RWM(logdensityFn).stepSize(config.stepSize).build();
+  }
+
+  return HMC(logdensityFn)
+    .stepSize(config.stepSize)
+    .numIntegrationSteps(config.numIntegrationSteps)
+    .inverseMassMatrix(np.array([1.0, 1.0]))
+    .build();
+}
+
 /**
- * Build HMC sampler with current parameters.
+ * Build sampler with current parameters.
  */
 function buildSampler(): void {
   console.log('[HMC-VIZ] 4a. buildSampler() entered');
   const stepSize = parseFloat(stepSizeSlider.value);
   const numSteps = parseInt(numStepsSlider.value, 10);
-  console.log('[HMC-VIZ] 4b. Parsed params:', { stepSize, numSteps });
+  console.log('[HMC-VIZ] 4b. Parsed params:', { stepSize, numSteps, algorithm: currentAlgorithm });
 
-  console.log('[HMC-VIZ] 4c. Calling HMC()...');
-  const builder = HMC(currentDistribution.logdensity);
-  console.log('[HMC-VIZ] 4d. HMC builder created');
+  sampler = createSampler(currentAlgorithm, currentDistribution.logdensity, {
+    stepSize,
+    numIntegrationSteps: numSteps,
+  });
+  console.log('[HMC-VIZ] 4c. buildSampler() complete');
+}
 
-  console.log('[HMC-VIZ] 4e. Setting stepSize...');
-  const b2 = builder.stepSize(stepSize);
-  console.log('[HMC-VIZ] 4f. Setting numIntegrationSteps...');
-  const b3 = b2.numIntegrationSteps(numSteps);
-  console.log('[HMC-VIZ] 4g. Setting inverseMassMatrix...');
-  const b4 = b3.inverseMassMatrix(np.array([1.0, 1.0]));
-  console.log('[HMC-VIZ] 4h. Calling build()...');
-  sampler = b4.build();
-  console.log('[HMC-VIZ] 4i. buildSampler() complete');
+function syncAlgorithmUI(): void {
+  const isHmc = currentAlgorithm === 'hmc';
+  numStepsGroup.classList.toggle('hidden', !isHmc);
+  numStepsSlider.disabled = !isHmc;
 }
 
 /**
- * Initialize HMC state at distribution's initial position.
+ * Initialize sampler state at distribution's initial position.
  */
 function initializeState(): void {
   const [x, y] = currentDistribution.initialPosition;
-  hmcState = sampler.init(np.array([x, y]));
+  samplerState = sampler.init(np.array([x, y]));
   prevX = undefined;
   prevY = undefined;
 }
@@ -223,6 +255,8 @@ function reset(): void {
   acceptedCount = 0;
   divergentCount = 0;
 
+  syncAlgorithmUI();
+
   // Rebuild sampler and state
   buildSampler();
   initializeState();
@@ -239,31 +273,44 @@ function reset(): void {
 }
 
 /**
- * Perform one HMC step.
+ * Perform one sampler step.
  */
 function performStep(): void {
   // Save old position BEFORE step (step consumes the state)
-  const oldPos = hmcState.position.ref.js() as number[];
+  const oldPos = samplerState.position.ref.js() as number[];
   prevX = oldPos[0];
   prevY = oldPos[1];
 
   const key = random.key(baseSeed + stepCounter);
-  const [newState, info] = sampler.step(key, hmcState);
+  const [newState, info] = sampler.step(key, samplerState);
 
   // Read info values before disposal
   const acceptanceProb = info.acceptanceProb.ref.js() as number;
   const isAccepted = info.isAccepted.ref.js() as boolean;
-  const isDivergent = info.isDivergent.ref.js() as boolean;
-  const energy = info.energy.ref.js() as number;
+  const isDivergent = 'isDivergent' in info
+    ? (info.isDivergent.ref.js() as boolean)
+    : false;
+  const energy = 'energy' in info ? (info.energy.ref.js() as number) : null;
 
   // Debug logging
-  console.log(`[HMC-VIZ] Step ${stepCounter}: pos=(${prevX?.toFixed(2)}, ${prevY?.toFixed(2)}) -> acceptProb=${acceptanceProb.toFixed(4)}, energy=${energy.toFixed(2)}, accepted=${isAccepted}`);
+  const energyLabel = energy === null ? 'N/A' : energy.toFixed(2);
+  console.log(`[HMC-VIZ] Step ${stepCounter}: pos=(${prevX?.toFixed(2)}, ${prevY?.toFixed(2)}) -> acceptProb=${acceptanceProb.toFixed(4)}, energy=${energyLabel}, accepted=${isAccepted}`);
+
+  // Capture for debug API (position will be updated after state update)
+  const newPosArray = newState.position.ref.js() as number[];
+  lastStepResult = {
+    accepted: isAccepted,
+    acceptanceProb,
+    position: [newPosArray[0]!, newPosArray[1]!],
+    ...(energy !== null && { energy }),
+    ...(currentAlgorithm === 'hmc' && { isDivergent }),
+  };
 
   // Dispose info (old state was consumed by step)
   disposeInfo(info);
 
   // Update state
-  hmcState = newState;
+  samplerState = newState;
   stepCounter++;
 
   // Get new position
@@ -287,6 +334,10 @@ function performStep(): void {
   render();
 }
 
+function formatDivergentCount(count: number): string {
+  return currentAlgorithm === 'hmc' ? String(count) : 'N/A';
+}
+
 /**
  * Update statistics display.
  */
@@ -296,7 +347,7 @@ function updateStats(): void {
   if (samples.length > 0) {
     const rate = (acceptedCount / samples.length) * 100;
     statAcceptance.textContent = `${rate.toFixed(1)}%`;
-    statDivergent.textContent = String(divergentCount);
+    statDivergent.textContent = formatDivergentCount(divergentCount);
 
     const meanX = samples.reduce((sum, s) => sum + s.x, 0) / samples.length;
     const meanY = samples.reduce((sum, s) => sum + s.y, 0) / samples.length;
@@ -304,7 +355,7 @@ function updateStats(): void {
     statMeanY.textContent = meanY.toFixed(3);
   } else {
     statAcceptance.textContent = '-';
-    statDivergent.textContent = '0';
+    statDivergent.textContent = formatDivergentCount(0);
     statMeanX.textContent = '-';
     statMeanY.textContent = '-';
   }
@@ -317,17 +368,17 @@ function updateCurrentInfo(info: {
   acceptanceProb: number;
   isAccepted: boolean;
   isDivergent: boolean;
-  energy: number;
+  energy: number | null;
 } | null): void {
   if (info === null) {
     infoAcceptProb.textContent = '-';
-    infoEnergy.textContent = '-';
+    infoEnergy.textContent = currentAlgorithm === 'rwm' ? 'N/A' : '-';
     infoStatus.textContent = '-';
     return;
   }
 
   infoAcceptProb.textContent = info.acceptanceProb.toFixed(3);
-  infoEnergy.textContent = info.energy.toFixed(2);
+  infoEnergy.textContent = info.energy === null ? 'N/A' : info.energy.toFixed(2);
 
   if (info.isDivergent) {
     infoStatus.textContent = 'Divergent';
@@ -353,7 +404,7 @@ function updateZoomDisplay(): void {
  * Render the current visualization state.
  */
 function render(): void {
-  const posArray = hmcState.position.ref.js() as number[];
+  const posArray = samplerState.position.ref.js() as number[];
   const x = posArray[0]!;
   const y = posArray[1]!;
   const trueParams = {
@@ -402,6 +453,12 @@ function togglePlay(): void {
  * Set up UI event listeners.
  */
 function setupEventListeners(): void {
+  // Algorithm change
+  algorithmSelect.addEventListener('change', () => {
+    currentAlgorithm = algorithmSelect.value as Algorithm;
+    reset();
+  });
+
   // Distribution change
   distributionSelect.addEventListener('change', () => {
     const key = distributionSelect.value as keyof typeof distributions;
@@ -507,7 +564,8 @@ async function init(): Promise<void> {
 
     await new Promise((r) => setTimeout(r, 50));
 
-    // Initialize distribution
+    // Initialize algorithm and distribution
+    currentAlgorithm = algorithmSelect.value as Algorithm;
     currentDistribution = distributions.gaussian!();
     console.log('[HMC-VIZ] 2. Distribution created:', currentDistribution.name);
     trueParamsInfo.textContent = currentDistribution.trueParams.description;
@@ -517,10 +575,11 @@ async function init(): Promise<void> {
     console.log('[HMC-VIZ] 3. Renderer created');
 
     // Build sampler and state (this triggers JAX-JS warmup)
-    loadingEl.querySelector('.loading-text')!.textContent = 'Building HMC sampler...';
+    loadingEl.querySelector('.loading-text')!.textContent = 'Building sampler...';
     await new Promise((r) => setTimeout(r, 50));
 
     console.log('[HMC-VIZ] 4. Building sampler...');
+    syncAlgorithmUI();
     buildSampler();
     console.log('[HMC-VIZ] 5. Sampler built');
     initializeState();
@@ -549,6 +608,37 @@ async function init(): Promise<void> {
     console.error('[HMC-VIZ] Initialization error:', error);
   }
 }
+
+// Debug API types for agentic debugging
+interface DebugState {
+  algorithm: Algorithm;
+  distribution: string;
+  position: [number, number];
+  stepCount: number;
+  acceptedCount: number;
+  divergentCount: number;
+  acceptanceRate: number;
+  config: { stepSize: number; numIntegrationSteps: number };
+  recentSamples: Array<{ x: number; y: number; accepted: boolean; divergent: boolean }>;
+}
+
+interface DebugStepResult {
+  accepted: boolean;
+  acceptanceProb: number;
+  position: [number, number];
+  energy?: number;
+  isDivergent?: boolean;
+}
+
+interface DebugConfig {
+  algorithm?: Algorithm;
+  stepSize?: number;
+  numSteps?: number;
+  distribution?: string;
+}
+
+// Last step info for debug API
+let lastStepResult: DebugStepResult | null = null;
 
 // Expose control interface to window for API control
 interface HMCVizAPI {
@@ -602,7 +692,7 @@ interface HMCVizAPI {
     reset();
   },
   getStatus: () => {
-    const posArray = hmcState.position.ref.js() as number[];
+    const posArray = samplerState.position.ref.js() as number[];
     return {
       isPlaying,
       samples: samples.length,
@@ -649,6 +739,131 @@ interface HMCVizAPI {
 };
 
 console.log('[HMC-VIZ] API exposed to window.__hmcViz');
+
+// Debug API for agentic debugging via command queue pattern
+interface HMCDebugAPI {
+  getState: () => DebugState;
+  step: () => DebugStepResult;
+  reset: () => { ok: true; position: [number, number] };
+  setConfig: (config: DebugConfig) => { stepSize: number; numIntegrationSteps: number; algorithm: Algorithm; distribution: string };
+}
+
+(window as unknown as { __hmcDebug: HMCDebugAPI }).__hmcDebug = {
+  getState: (): DebugState => {
+    const posArray = samplerState.position.ref.js() as number[];
+    return {
+      algorithm: currentAlgorithm,
+      distribution: currentDistribution.name,
+      position: [posArray[0]!, posArray[1]!],
+      stepCount: stepCounter,
+      acceptedCount,
+      divergentCount,
+      acceptanceRate: stepCounter > 0 ? acceptedCount / stepCounter : 0,
+      config: {
+        stepSize: parseFloat(stepSizeSlider.value),
+        numIntegrationSteps: parseInt(numStepsSlider.value, 10),
+      },
+      recentSamples: samples.slice(-20),
+    };
+  },
+  step: (): DebugStepResult => {
+    if (isPlaying) {
+      togglePlay(); // Pause first
+    }
+    performStep();
+    return lastStepResult!;
+  },
+  reset: (): { ok: true; position: [number, number] } => {
+    reset();
+    return { ok: true, position: currentDistribution.initialPosition as [number, number] };
+  },
+  setConfig: (config: DebugConfig) => {
+    if (config.algorithm !== undefined && config.algorithm !== currentAlgorithm) {
+      currentAlgorithm = config.algorithm;
+      algorithmSelect.value = config.algorithm;
+      syncAlgorithmUI();
+    }
+    if (config.distribution !== undefined) {
+      const key = Object.keys(distributions).find(
+        (k) => distributions[k as keyof typeof distributions]?.().name === config.distribution ||
+               k === config.distribution
+      );
+      if (key) {
+        currentDistribution = distributions[key as keyof typeof distributions]!();
+        distributionSelect.value = key;
+      }
+    }
+    if (config.stepSize !== undefined) {
+      stepSizeSlider.value = String(config.stepSize);
+      stepSizeValue.textContent = String(config.stepSize);
+    }
+    if (config.numSteps !== undefined) {
+      numStepsSlider.value = String(config.numSteps);
+      numStepsValue.textContent = String(config.numSteps);
+    }
+    buildSampler();
+    initializeState();
+    computeContours();
+    renderer.setBounds(currentDistribution.bounds);
+    render();
+    console.log('[HMC-VIZ] Config updated:', config);
+    return {
+      stepSize: parseFloat(stepSizeSlider.value),
+      numIntegrationSteps: parseInt(numStepsSlider.value, 10),
+      algorithm: currentAlgorithm,
+      distribution: currentDistribution.name,
+    };
+  },
+};
+
+console.log('[HMC-VIZ] Debug API exposed to window.__hmcDebug');
+
+// Debug command polling loop (only in dev mode)
+async function debugPollLoop(): Promise<void> {
+  if (import.meta.env.PROD) return;
+
+  while (true) {
+    try {
+      const res = await fetch('/__debug/poll');
+      const cmd = await res.json() as { id: string; type: string; payload?: unknown } | null;
+
+      if (cmd?.type) {
+        const api = (window as unknown as { __hmcDebug: HMCDebugAPI }).__hmcDebug;
+        let result: unknown;
+
+        switch (cmd.type) {
+          case 'getState':
+            result = api.getState();
+            break;
+          case 'step':
+            result = api.step();
+            break;
+          case 'reset':
+            result = api.reset();
+            break;
+          case 'setConfig':
+            result = api.setConfig(cmd.payload as DebugConfig);
+            break;
+          default:
+            result = { error: `Unknown command: ${cmd.type}` };
+        }
+
+        await fetch('/__debug/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: cmd.id, result }),
+        });
+      }
+    } catch {
+      // Ignore errors (server may not be available)
+    }
+
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+// Start polling loop
+debugPollLoop();
 
 // Set up HMR WebSocket handler for API control
 if (import.meta.hot) {

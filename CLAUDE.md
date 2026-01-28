@@ -26,6 +26,12 @@ JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
 stay comfortably below ~300MB by the end of 2,000 iterations. If it grows
 monotonically or exceeds ~500MB, treat as a regression.
 
+**RWM memory check:**
+```bash
+JAXJS_CACHE_LOG=1 NODE_OPTIONS="--expose-gc --loader ./tools/jaxjs-loader.mjs" \
+  ITERATIONS=2000 LOG_EVERY=500 npx tsx examples/memory-profile-rwm-jit-step.ts
+```
+
 **Why prefer JIT mode:** eager mode executes each primitive immediately and
 allocates many intermediate arrays per step, which drives the allocator's
 high-water mark upward. `jitStep()` fuses the whole step into a compiled kernel,

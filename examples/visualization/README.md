@@ -1,6 +1,6 @@
-# HMC Visualization
+# HMC/RWM Visualization
 
-Interactive browser-based visualization of Hamiltonian Monte Carlo sampling using JAX-JS.
+Interactive browser-based visualization of Hamiltonian Monte Carlo (HMC) and Random Walk Metropolis (RWM) sampling using JAX-JS.
 
 ## Quick Start
 
@@ -49,8 +49,9 @@ This helps verify that MCMC samples are concentrating around the correct regions
 
 | Control | Description |
 |---------|-------------|
+| **Algorithm** | Choose between HMC (gradient-based) and RWM (random walk) |
 | **Step Size (ε)** | Leapfrog integration step size. Larger = more aggressive proposals |
-| **Integration Steps (L)** | Number of leapfrog steps per HMC iteration |
+| **Integration Steps (L)** | Number of leapfrog steps per HMC iteration (hidden for RWM) |
 | **Animation Speed** | Milliseconds between samples |
 | **Zoom** | Buttons or mouse wheel to zoom in/out on the canvas |
 
@@ -58,7 +59,7 @@ This helps verify that MCMC samples are concentrating around the correct regions
 
 - **Green dots** - Accepted samples
 - **Red dots** - Rejected samples
-- **Yellow dots** - Divergent transitions
+- **Yellow dots** - Divergent transitions (HMC only)
 - **Blue dot** - Current sampler position
 - **Gray contours** - Log-density contour lines
 - **Pink stars** - True modes
@@ -90,27 +91,143 @@ Divergent transitions (yellow) indicate numerical instability from:
 - Extreme scale variation (like Neal's Funnel)
 - Approaching distribution boundaries
 
-## API Endpoints (Development)
+## RWM Notes
 
-For debugging, the dev server exposes REST endpoints:
+RWM proposes `q' = q + ε * noise` without gradients or momentum. It typically mixes more slowly than HMC, so expect lower acceptance rates and more random-walk behavior for larger step sizes.
+
+## Debug API (Development)
+
+The dev server exposes REST endpoints for programmatic control and agentic debugging.
+
+### Quick Test
 
 ```bash
-# Get current status
-curl http://localhost:5173/__api/status
+npm run viz &
+sleep 5
+curl http://localhost:5173/__debug/state
+```
 
-# Control playback
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/__debug/state` | Full sampler state (algorithm, position, stats, config, recent samples) |
+| POST | `/__debug/step` | Execute one step, returns acceptance info |
+| POST | `/__debug/reset` | Reset to initial state |
+| POST | `/__debug/config` | Update algorithm/distribution/parameters |
+| GET | `/__debug/logs?limit=N` | Console messages (requires `CONSOLE_BRIDGE=1`) |
+
+### Examples
+
+```bash
+# Get current state
+curl http://localhost:5173/__debug/state
+
+# Execute single step
+curl -X POST http://localhost:5173/__debug/step
+
+# Reset sampler
+curl -X POST http://localhost:5173/__debug/reset
+
+# Switch to RWM algorithm
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"algorithm":"rwm"}' \
+  http://localhost:5173/__debug/config
+
+# Change distribution and step size
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"distribution":"banana","stepSize":0.1}' \
+  http://localhost:5173/__debug/config
+
+# Full config update
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"algorithm":"hmc","stepSize":0.15,"numSteps":10,"distribution":"funnel"}' \
+  http://localhost:5173/__debug/config
+```
+
+### Response Formats
+
+**GET /__debug/state**
+```json
+{
+  "algorithm": "hmc",
+  "distribution": "2D Gaussian",
+  "position": [0.5, -0.3],
+  "stepCount": 42,
+  "acceptedCount": 38,
+  "divergentCount": 0,
+  "acceptanceRate": 0.905,
+  "config": {"stepSize": 0.15, "numIntegrationSteps": 10},
+  "recentSamples": [{"x": 0.5, "y": -0.3, "accepted": true, "divergent": false}]
+}
+```
+
+**POST /__debug/step**
+```json
+{
+  "accepted": true,
+  "acceptanceProb": 0.987,
+  "position": [0.72, -0.15],
+  "energy": 1.234,
+  "isDivergent": false
+}
+```
+Note: `energy` and `isDivergent` only present for HMC.
+
+### Config Options
+
+| Option | Values |
+|--------|--------|
+| `algorithm` | `"hmc"`, `"rwm"` |
+| `stepSize` | float (e.g., `0.1`) |
+| `numSteps` | integer (HMC only, e.g., `10`) |
+| `distribution` | `"gaussian"`, `"correlated"`, `"banana"`, `"bimodal"`, `"donut"`, `"funnel"`, `"squiggle"` |
+
+### Run Multiple Steps
+
+```bash
+for i in {1..10}; do
+  curl -s -X POST http://localhost:5173/__debug/step | jq -c '{accepted, acceptanceProb}'
+done
+```
+
+### Browser Console API
+
+Also available in browser devtools:
+
+```javascript
+__hmcDebug.getState()
+__hmcDebug.step()
+__hmcDebug.reset()
+__hmcDebug.setConfig({ algorithm: 'rwm', stepSize: 0.3 })
+```
+
+### Architecture
+
+The debug API uses a command queue pattern for browser-server communication:
+
+```
+Terminal ──curl──▶ Vite Server ◀──poll/result──▶ Browser
+                  (debug-api.ts)                 (hmc-viz.ts)
+```
+
+1. curl request queues command on server
+2. Browser polls `/__debug/poll` every 100ms
+3. Browser executes, posts result to `/__debug/result`
+4. Server returns result to curl (5s timeout)
+
+### Legacy API
+
+The older `/__api/*` endpoints are still available:
+
+```bash
+curl http://localhost:5173/__api/status
 curl -X POST http://localhost:5173/__api/play
 curl -X POST http://localhost:5173/__api/pause
 curl -X POST http://localhost:5173/__api/step
 curl -X POST http://localhost:5173/__api/reset
-
-# List distributions
 curl http://localhost:5173/__api/distributions
-
-# Set distribution
 curl -X POST http://localhost:5173/__api/distribution/banana
-
-# Set parameters
 curl -X POST http://localhost:5173/__api/stepsize/0.3
 curl -X POST http://localhost:5173/__api/numsteps/20
 ```
@@ -139,7 +256,9 @@ The static build works identically to the dev version - all computation happens 
 | File | Purpose |
 |------|---------|
 | `index.html` | Main page with Canvas and controls |
-| `hmc-viz.ts` | Main visualization orchestration, HMC runner |
+| `hmc-viz.ts` | Main visualization orchestration, sampler runner, debug polling |
 | `distributions.ts` | Distribution definitions with true parameters |
 | `renderer.ts` | Canvas rendering with zoom support |
 | `contour.ts` | Marching squares contour extraction |
+| `debug-api.ts` | Vite plugin for REST debug endpoints |
+| `console-bridge.ts` | Browser-to-terminal console forwarding |
