@@ -88,18 +88,21 @@ export class HMCBuilder {
         },
       ];
     };
-    const jitKernel = jit as unknown as <T extends (...args: any[]) => any>(
-      fn: T
-    ) => T;
-    const stepJit = fullConfig.jitStep ? jitKernel(stepArrays) : null;
+    type Jit = <Args extends unknown[], R>(
+      fn: (...args: Args) => R
+    ) => (...args: Args) => R;
+    const jitKernel = jit as unknown as Jit;
     const step = fullConfig.jitStep
-      ? (key: Array, state: HMCState): [HMCState, HMCInfo] => {
-          const [newState, info] = stepJit!(key, state);
-          return [
-            newState,
-            { ...info, numIntegrationSteps: fullConfig.numIntegrationSteps },
-          ];
-        }
+      ? (() => {
+          const stepJit = jitKernel(stepArrays);
+          return (key: Array, state: HMCState): [HMCState, HMCInfo] => {
+            const [newState, info] = stepJit(key, state);
+            return [
+              newState,
+              { ...info, numIntegrationSteps: fullConfig.numIntegrationSteps },
+            ];
+          };
+        })()
       : stepCore;
 
     const logdensityGradFn = grad(this.logdensityFn);
