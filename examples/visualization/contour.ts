@@ -70,13 +70,22 @@ export function computeContourLevels(
     }
   }
 
+  if (!isFinite(minVal) || !isFinite(maxVal)) {
+    return [];
+  }
+
+  // Clamp extreme ranges so heavy-tailed distributions render useful contours.
+  // Neal's funnel can span tens of thousands of log units across the grid.
+  const maxLogDrop = 30;
+  const effectiveMin = Math.max(minVal, maxVal - maxLogDrop);
+
   // Create evenly spaced levels (in log space)
   const levels: number[] = [];
-  const range = maxVal - minVal;
+  const range = maxVal - effectiveMin;
 
   // Start from near the max (high density) going down
   for (let i = 1; i <= numLevels; i++) {
-    const level = maxVal - (i / (numLevels + 1)) * range * 0.9;
+    const level = maxVal - (i / (numLevels + 1)) * range;
     levels.push(level);
   }
 
