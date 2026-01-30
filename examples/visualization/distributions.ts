@@ -188,6 +188,10 @@ export function createDonut(): Distribution {
  * Challenging due to varying scale - narrow at top, wide at bottom.
  */
 export function createFunnel(): Distribution {
+  const vStd = 3;
+  const vVar = vStd * vStd;
+  const vMode = -0.5 * vVar;
+
   return {
     name: 'Funnel',
     logdensity: (position: Array): Array => {
@@ -196,18 +200,18 @@ export function createFunnel(): Distribution {
       const v = position.ref.slice([0, 1]).reshape([]);
       const x = position.slice([1, 2]).reshape([]);
 
-      const logPv = np.square(v.ref).mul(-1 / 18); // -v^2/18
+      const logPv = np.square(v.ref).mul(-0.5 / vVar); // -v^2/(2*vVar)
       const expNegV = np.exp(v.ref.mul(-1));
       const logPxGivenV = v.mul(-0.5).sub(np.square(x).mul(expNegV).mul(0.5));
 
       return logPv.add(logPxGivenV);
     },
-    bounds: { xMin: -8, xMax: 8, yMin: -6, yMax: 6 },
-    initialPosition: [0, 0],
+    bounds: { xMin: -8, xMax: 8, yMin: -20, yMax: 20 },
+    initialPosition: [vMode, 0],
     trueParams: {
       mean: [0, 0],
-      modes: [[0, 0]],
-      description: 'v ~ N(0,9), x|v ~ N(0,eᵛ)',
+      modes: [[vMode, 0]],
+      description: `v ~ N(0,${vVar}), x|v ~ N(0,eᵛ)`,
     },
   };
 }

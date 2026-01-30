@@ -151,8 +151,10 @@ function createJSLogdensity(dist: Distribution): (x: number, y: number) => numbe
   }
 
   if (name === 'Funnel') {
+    const vStd = 3;
+    const vVar = vStd * vStd;
     return (v: number, x: number) => {
-      const logPv = -(v * v) / 18;
+      const logPv = -(v * v) / (2 * vVar);
       const logPxGivenV = -v / 2 - (x * x) / (2 * Math.exp(v));
       return logPv + logPxGivenV;
     };
