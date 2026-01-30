@@ -34,7 +34,6 @@ let animationTimer: number | null = null;
 let baseSeed = Date.now();  // Random base seed, changes on each reset
 let stepCounter = 0;
 let acceptedCount = 0;
-let divergentCount = 0;
 let prevX: number | undefined;
 let prevY: number | undefined;
 
@@ -67,7 +66,6 @@ const zoomLevelDisplay = document.getElementById('zoom-level') as HTMLSpanElemen
 // Stats elements
 const statSamples = document.getElementById('stat-samples') as HTMLSpanElement;
 const statAcceptance = document.getElementById('stat-acceptance') as HTMLSpanElement;
-const statDivergent = document.getElementById('stat-divergent') as HTMLSpanElement;
 const statMeanX = document.getElementById('stat-mean-x') as HTMLSpanElement;
 const statMeanY = document.getElementById('stat-mean-y') as HTMLSpanElement;
 const infoAcceptProb = document.getElementById('info-accept-prob') as HTMLSpanElement;
@@ -253,7 +251,6 @@ function reset(): void {
   baseSeed = Date.now();  // New random seed for each reset
   stepCounter = 0;
   acceptedCount = 0;
-  divergentCount = 0;
 
   syncAlgorithmUI();
 
@@ -287,9 +284,6 @@ function performStep(): void {
   // Read info values before disposal
   const acceptanceProb = info.acceptanceProb.ref.js() as number;
   const isAccepted = info.isAccepted.ref.js() as boolean;
-  const isDivergent = 'isDivergent' in info
-    ? (info.isDivergent.ref.js() as boolean)
-    : false;
   const energy = 'energy' in info ? (info.energy.ref.js() as number) : null;
 
   // Debug logging
@@ -303,7 +297,6 @@ function performStep(): void {
     acceptanceProb,
     position: [newPosArray[0]!, newPosArray[1]!],
     ...(energy !== null && { energy }),
-    ...(currentAlgorithm === 'hmc' && { isDivergent }),
   };
 
   // Dispose info (old state was consumed by step)
@@ -319,9 +312,8 @@ function performStep(): void {
   const y = posArray[1]!;
 
   // Track sample
-  samples.push({ x, y, accepted: isAccepted, divergent: isDivergent });
+  samples.push({ x, y, accepted: isAccepted });
   if (isAccepted) acceptedCount++;
-  if (isDivergent) divergentCount++;
 
   // Limit samples to prevent memory issues
   if (samples.length > 500) {
@@ -330,12 +322,8 @@ function performStep(): void {
 
   // Update UI
   updateStats();
-  updateCurrentInfo({ acceptanceProb, isAccepted, isDivergent, energy });
+  updateCurrentInfo({ acceptanceProb, isAccepted, energy });
   render();
-}
-
-function formatDivergentCount(count: number): string {
-  return currentAlgorithm === 'hmc' ? String(count) : 'N/A';
 }
 
 /**
@@ -347,7 +335,6 @@ function updateStats(): void {
   if (samples.length > 0) {
     const rate = (acceptedCount / samples.length) * 100;
     statAcceptance.textContent = `${rate.toFixed(1)}%`;
-    statDivergent.textContent = formatDivergentCount(divergentCount);
 
     const meanX = samples.reduce((sum, s) => sum + s.x, 0) / samples.length;
     const meanY = samples.reduce((sum, s) => sum + s.y, 0) / samples.length;
@@ -355,7 +342,6 @@ function updateStats(): void {
     statMeanY.textContent = meanY.toFixed(3);
   } else {
     statAcceptance.textContent = '-';
-    statDivergent.textContent = formatDivergentCount(0);
     statMeanX.textContent = '-';
     statMeanY.textContent = '-';
   }
@@ -367,7 +353,6 @@ function updateStats(): void {
 function updateCurrentInfo(info: {
   acceptanceProb: number;
   isAccepted: boolean;
-  isDivergent: boolean;
   energy: number | null;
 } | null): void {
   if (info === null) {
@@ -380,10 +365,7 @@ function updateCurrentInfo(info: {
   infoAcceptProb.textContent = info.acceptanceProb.toFixed(3);
   infoEnergy.textContent = info.energy === null ? 'N/A' : info.energy.toFixed(2);
 
-  if (info.isDivergent) {
-    infoStatus.textContent = 'Divergent';
-    infoStatus.style.color = '#facc15';
-  } else if (info.isAccepted) {
+  if (info.isAccepted) {
     infoStatus.textContent = 'Accepted';
     infoStatus.style.color = '#4ade80';
   } else {
@@ -616,10 +598,9 @@ interface DebugState {
   position: [number, number];
   stepCount: number;
   acceptedCount: number;
-  divergentCount: number;
   acceptanceRate: number;
   config: { stepSize: number; numIntegrationSteps: number };
-  recentSamples: Array<{ x: number; y: number; accepted: boolean; divergent: boolean }>;
+  recentSamples: Array<{ x: number; y: number; accepted: boolean }>;
 }
 
 interface DebugStepResult {
@@ -627,7 +608,6 @@ interface DebugStepResult {
   acceptanceProb: number;
   position: [number, number];
   energy?: number;
-  isDivergent?: boolean;
 }
 
 interface DebugConfig {
@@ -644,14 +624,13 @@ let lastStepResult: DebugStepResult | null = null;
 interface HMCVizAPI {
   play: () => void;
   pause: () => void;
-  step: () => { isAccepted: boolean; isDivergent: boolean; samples: number } | null;
+  step: () => { isAccepted: boolean; samples: number } | null;
   reset: () => void;
   getStatus: () => {
     isPlaying: boolean;
     samples: number;
     stepCounter: number;
     acceptedCount: number;
-    divergentCount: number;
     acceptanceRate: number;
     currentDistribution: string;
   };
@@ -681,7 +660,7 @@ interface HMCVizAPI {
       performStep();
       const lastSample = samples[samples.length - 1];
       return lastSample
-        ? { isAccepted: lastSample.accepted, isDivergent: lastSample.divergent, samples: samples.length }
+        ? { isAccepted: lastSample.accepted, samples: samples.length }
         : null;
     } catch (error) {
       console.error('[HMC-VIZ] step() error:', error);
@@ -698,7 +677,6 @@ interface HMCVizAPI {
       samples: samples.length,
       stepCounter,
       acceptedCount,
-      divergentCount,
       acceptanceRate: samples.length > 0 ? acceptedCount / samples.length : 0,
       currentDistribution: currentDistribution.name,
       position: { x: posArray[0], y: posArray[1] },
@@ -757,7 +735,6 @@ interface HMCDebugAPI {
       position: [posArray[0]!, posArray[1]!],
       stepCount: stepCounter,
       acceptedCount,
-      divergentCount,
       acceptanceRate: stepCounter > 0 ? acceptedCount / stepCounter : 0,
       config: {
         stepSize: parseFloat(stepSizeSlider.value),

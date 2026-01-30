@@ -8,13 +8,11 @@ export interface Sample {
   x: number;
   y: number;
   accepted: boolean;
-  divergent: boolean;
 }
 
 export interface RenderColors {
   accepted: string;
   rejected: string;
-  divergent: string;
   current: string;
   contour: string;
   background: string;
@@ -26,7 +24,6 @@ export interface RenderColors {
 const DEFAULT_COLORS: RenderColors = {
   accepted: '#4ade80',   // Green
   rejected: '#f87171',   // Red
-  divergent: '#facc15',  // Yellow
   current: '#60a5fa',    // Blue
   contour: '#334155',    // Slate
   background: '#16213e', // Dark blue
@@ -252,9 +249,7 @@ export class CanvasRenderer {
       const [cx, cy] = this.worldToCanvas(sample.x, sample.y);
 
       // Choose color based on status
-      if (sample.divergent) {
-        ctx.fillStyle = this.colors.divergent;
-      } else if (sample.accepted) {
+      if (sample.accepted) {
         ctx.fillStyle = this.colors.accepted;
       } else {
         ctx.fillStyle = this.colors.rejected;
