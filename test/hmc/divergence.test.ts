@@ -70,4 +70,90 @@ describe('Divergence Detection', () => {
     state.logdensity.dispose();
     state.logdensityGrad.dispose();
   });
+
+  it('flags NaN energy as divergent', () => {
+    const nanLogdensity = (q: np.Array): np.Array => {
+      return q.ref.mul(q).mul(np.nan).sum();
+    };
+
+    const sampler = HMC(nanLogdensity)
+      .stepSize(0.1)
+      .numIntegrationSteps(1)
+      .inverseMassMatrix(np.array([1.0]))
+      .divergenceThreshold(1000)
+      .build();
+
+    const state = sampler.init(np.array([1.0]));
+    const key = random.key(42);
+    const [newState, info] = sampler.step(key, state);
+
+    expect(info.isDivergent.ref.js()).toBe(true);
+
+    newState.position.dispose();
+    newState.logdensity.dispose();
+    newState.logdensityGrad.dispose();
+    info.momentum.dispose();
+    info.acceptanceProb.dispose();
+    info.isAccepted.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+  });
+
+  it('rejects NaN energy proposals', () => {
+    const nanLogdensity = (q: np.Array): np.Array => {
+      return q.ref.mul(q).mul(np.nan).sum();
+    };
+
+    const sampler = HMC(nanLogdensity)
+      .stepSize(0.1)
+      .numIntegrationSteps(1)
+      .inverseMassMatrix(np.array([1.0]))
+      .divergenceThreshold(1000)
+      .build();
+
+    const state = sampler.init(np.array([1.0]));
+    const key = random.key(42);
+    const [newState, info] = sampler.step(key, state);
+
+    expect(info.isAccepted.ref.js()).toBe(false);
+
+    newState.position.dispose();
+    newState.logdensity.dispose();
+    newState.logdensityGrad.dispose();
+    info.momentum.dispose();
+    info.acceptanceProb.dispose();
+    info.isAccepted.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+  });
+
+  it('does not leak arrays on NaN energy path', () => {
+    const nanLogdensity = (q: np.Array): np.Array => {
+      return q.ref.mul(q).mul(np.nan).sum();
+    };
+
+    const sampler = HMC(nanLogdensity)
+      .stepSize(0.1)
+      .numIntegrationSteps(1)
+      .inverseMassMatrix(np.array([1.0]))
+      .divergenceThreshold(1000)
+      .build();
+
+    const state = sampler.init(np.array([1.0]));
+    const key = random.key(99);
+    const [newState, info] = sampler.step(key, state);
+
+    newState.position.dispose();
+    newState.logdensity.dispose();
+    newState.logdensityGrad.dispose();
+    info.momentum.dispose();
+    info.acceptanceProb.dispose();
+    info.isAccepted.dispose();
+    info.isDivergent.dispose();
+    info.energy.dispose();
+
+    expect(newState.position.refCount).toBe(0);
+    expect(info.isDivergent.refCount).toBe(0);
+    expect(info.isAccepted.refCount).toBe(0);
+  });
 });

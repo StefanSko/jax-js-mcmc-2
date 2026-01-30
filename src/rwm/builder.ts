@@ -36,9 +36,10 @@ export class RWMBuilder {
       logdensityFn: this.logdensityFn,
       stepSize: fullConfig.stepSize,
     });
-    const jitKernel = jit as unknown as <T extends (...args: any[]) => any>(
-      fn: T
-    ) => T;
+    type Jit = <Args extends unknown[], R>(
+      fn: (...args: Args) => R
+    ) => (...args: Args) => R;
+    const jitKernel = jit as unknown as Jit;
     const step = fullConfig.jitStep ? jitKernel(kernel) : kernel;
 
     const init = (position: Array): RWMState => {
