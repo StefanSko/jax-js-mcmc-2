@@ -2,6 +2,7 @@ import { numpy as np, random, type Array } from '@jax-js/jax';
 import type { HMCState, HMCInfo, HMCConfig } from './types';
 import type { Metric } from '../metrics/types';
 import type { Integrator, IntegratorState } from '../integrators/types';
+import { safeEnergyDiff } from './safe-energy-diff';
 
 export type HMCKernel = (key: Array, state: HMCState) => [HMCState, HMCInfo];
 
@@ -39,7 +40,7 @@ export function createHMCKernel(
     const proposalKinetic = metric.kineticEnergy(integState.momentum.ref);
     const proposalEnergy = integState.logdensity.ref.neg().add(proposalKinetic);
 
-    const deltaEnergy = proposalEnergy.ref.sub(initialEnergy);
+    const deltaEnergy = safeEnergyDiff(proposalEnergy.ref, initialEnergy);
     const isDivergent = deltaEnergy.ref.greater(divergenceThreshold);
     const acceptanceProb = np.minimum(np.array(1.0), np.exp(deltaEnergy.neg()));
     const uniform = random.uniform(keyAccept, []);
