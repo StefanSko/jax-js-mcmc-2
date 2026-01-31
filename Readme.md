@@ -12,6 +12,12 @@ core implementation + memory-debug (Codex, 2026-01-23, surabaya worktree):
     - topics: TDD workflow (RED→GREEN), refcount debugging, integrator implementation
     - keywords: dispose errors, refcount tests, harmonic oscillator, energy conservation, HMC kernel
 
+visualization:
+    -brainstorming:
+        -https://gisthost.github.io/?b38886be9115503a984a387e235b6bfb/
+    -implementation:
+        -https://gisthost.github.io/?008699e3ed8c1b3f612ea1b858741eb7/
+
 
 documentation:
     - https://gisthost.github.io/?54cb7234ad3b9df63e6c18500c640921
