@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grid Approximation - Curse of Dimensionality</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    .nav-bar {
+      background: #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1a1a2e;
+      overflow-x: auto;
+    }
+    .nav-bar a {
+      color: #94a3b8;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav-bar a:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+    .nav-bar a.active { color: #e94560; font-weight: 600; }
+    .nav-bar .nav-sep { color: #334155; }
+
+    .container { display: flex; height: calc(100vh - 41px); }
+
+    /* Left: Visualization area */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-width: 0;
+    }
+
+    .panels {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .panel {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+      display: none;
+    }
+    .panel.active { display: flex; flex-direction: column; }
+
+    .panel-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .panel canvas {
+      flex: 1;
+      width: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* 3D counter display */
+    .counter-display {
+      flex: 1;
+      background: #16213e;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .counter-value {
+      font-size: 64px;
+      font-weight: 700;
+      font-family: 'SF Mono', Monaco, monospace;
+      color: #e94560;
+      text-align: center;
+      line-height: 1.1;
+    }
+    .counter-label {
+      font-size: 18px;
+      color: #94a3b8;
+    }
+    .counter-formula {
+      font-size: 24px;
+      color: #60a5fa;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+    .counter-warning {
+      font-size: 14px;
+      color: #f87171;
+      max-width: 400px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Evaluation counter banner */
+    .eval-banner {
+      text-align: center;
+      padding: 12px;
+      margin-top: 12px;
+      background: #16213e;
+      border-radius: 8px;
+    }
+    .eval-count {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'SF Mono', Monaco, monospace;
+      color: #4ade80;
+    }
+    .eval-label {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    /* Right: Control panel */
+    .controls {
+      width: 280px;
+      background: #0f3460;
+      padding: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .control-group { margin-bottom: 20px; }
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .control-group input[type="range"] { width: 100%; }
+    .value-display {
+      text-align: right;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* Dimension tab buttons */
+    .dim-tabs {
+      display: flex;
+      gap: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #533483;
+    }
+    .dim-tab {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      background: #1a1a2e;
+      color: #94a3b8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .dim-tab:not(:last-child) {
+      border-right: 1px solid #533483;
+    }
+    .dim-tab:hover { background: #252547; color: #eee; }
+    .dim-tab.active {
+      background: #533483;
+      color: #fff;
+    }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-secondary { background: #533483; color: white; }
+
+    /* Stats panel */
+    .stats {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .stats-row:last-child { margin-bottom: 0; }
+
+    /* Insight box */
+    .insight-box {
+      background: #1a1a2e;
+      border-left: 3px solid #e94560;
+      padding: 10px 12px;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    .insight-box strong {
+      color: #e94560;
+    }
+
+    /* Title */
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav-bar">
+    <a href="../grid-approximation/" class="active">Grid Approximation</a>
+    <span class="nav-sep">|</span>
+    <a href="../posterior-shapes/">Posterior Shapes</a>
+    <span class="nav-sep">|</span>
+    <a href="../rwm-explorer/">RWM Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../energy-conservation/">Energy Conservation</a>
+    <span class="nav-sep">|</span>
+    <a href="../hmc-explorer/">HMC Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../">HMC + RWM Sandbox</a>
+  </nav>
+  <div class="container">
+    <div class="canvas-area">
+      <h1>Grid Approximation</h1>
+      <p class="subtitle">The curse of dimensionality</p>
+
+      <div class="panels">
+        <!-- 1D Panel -->
+        <div class="panel active" id="panel-1d">
+          <span class="panel-label">1D Grid: Standard Normal</span>
+          <canvas id="canvas-1d"></canvas>
+        </div>
+
+        <!-- 2D Panel -->
+        <div class="panel" id="panel-2d">
+          <span class="panel-label">2D Grid: Bivariate Normal</span>
+          <canvas id="canvas-2d"></canvas>
+        </div>
+
+        <!-- 3D Panel -->
+        <div class="panel" id="panel-3d">
+          <span class="panel-label">3D Grid: Trivariate Normal</span>
+          <div class="counter-display">
+            <div class="counter-label">Density evaluations required</div>
+            <div class="counter-formula" id="counter-formula">20<sup>3</sup></div>
+            <div class="counter-value" id="counter-value">8,000</div>
+            <div class="counter-warning" id="counter-warning"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="eval-banner">
+        <div class="eval-count" id="eval-count">20</div>
+        <div class="eval-label">density evaluations</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <h2>Parameters</h2>
+
+      <div class="control-group">
+        <label>Dimension</label>
+        <div class="dim-tabs">
+          <button class="dim-tab active" data-dim="1">1D</button>
+          <button class="dim-tab" data-dim="2">2D</button>
+          <button class="dim-tab" data-dim="3">3D</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="bins-slider">Bins</label>
+        <input type="range" id="bins-slider" min="10" max="500" step="1" value="20">
+        <div class="value-display" id="bins-display">20</div>
+      </div>
+
+      <div class="control-group">
+        <div class="btn-group">
+          <button class="btn btn-primary" id="play-btn">Play</button>
+          <button class="btn btn-secondary" id="reset-btn">Reset</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Statistics</h3>
+        <div class="stats">
+          <div class="stats-row">
+            <span>Dimension:</span>
+            <span id="stat-dim">1D</span>
+          </div>
+          <div class="stats-row">
+            <span>Bins:</span>
+            <span id="stat-bins">20</span>
+          </div>
+          <div class="stats-row">
+            <span>Evaluations:</span>
+            <span id="stat-evals">20</span>
+          </div>
+          <div class="stats-row">
+            <span>Wall time:</span>
+            <span id="stat-time">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Integral approx:</span>
+            <span id="stat-integral">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Insight</h3>
+        <div class="insight-box" id="insight">
+          <strong>1D</strong> is easy: 20 bins gives a good approximation
+          of the standard normal density.
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Scaling</h3>
+        <div class="stats">
+          <div class="stats-row">
+            <span>1D:</span>
+            <span id="scale-1d">20</span>
+          </div>
+          <div class="stats-row">
+            <span>2D:</span>
+            <span id="scale-2d">400</span>
+          </div>
+          <div class="stats-row">
+            <span>3D:</span>
+            <span id="scale-3d">8,000</span>
+          </div>
+          <div class="stats-row">
+            <span>10D:</span>
+            <span id="scale-10d">1.02 &times; 10<sup>13</sup></span>
+          </div>
+          <div class="stats-row">
+            <span>100D:</span>
+            <span id="scale-100d">1.27 &times; 10<sup>130</sup></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./grid-viz.ts"></script>
+</body>
+</html>
