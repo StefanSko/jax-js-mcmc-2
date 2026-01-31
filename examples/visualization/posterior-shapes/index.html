@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Posterior Shapes - JAX-JS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    .nav-bar {
+      background: #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1a1a2e;
+      overflow-x: auto;
+    }
+    .nav-bar a {
+      color: #94a3b8;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav-bar a:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+    .nav-bar a.active { color: #e94560; font-weight: 600; }
+    .nav-bar .nav-sep { color: #334155; }
+
+    .container { display: flex; height: calc(100vh - 41px); }
+
+    /* Left: Canvas area */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-width: 0;
+    }
+
+    .canvases-row {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      min-height: 300px;
+    }
+
+    .canvas-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .canvas-panel canvas {
+      width: 100%;
+      flex: 1;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .operator-symbol {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      color: #94a3b8;
+      padding: 0 10px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .formula-label {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 16px;
+      color: #94a3b8;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+    .formula-label .formula-highlight {
+      color: #eee;
+      font-weight: 600;
+    }
+
+    /* Right: Control panel */
+    .controls {
+      width: 280px;
+      background: #0f3460;
+      padding: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .control-group { margin-bottom: 20px; }
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .control-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-secondary { background: #533483; color: white; }
+
+    /* Stats panel */
+    .stats {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .stats-row:last-child { margin-bottom: 0; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-top: 12px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Title */
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <nav class="nav-bar">
+    <a href="../grid-approximation/">Grid Approximation</a>
+    <span class="nav-sep">|</span>
+    <a href="../posterior-shapes/" class="active">Posterior Shapes</a>
+    <span class="nav-sep">|</span>
+    <a href="../rwm-explorer/">RWM Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../energy-conservation/">Energy Conservation</a>
+    <span class="nav-sep">|</span>
+    <a href="../hmc-explorer/">HMC Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../">HMC + RWM Sandbox</a>
+  </nav>
+  <div class="container">
+    <div class="canvas-area">
+      <h1>Posterior Shapes</h1>
+      <p class="subtitle">Prior &times; Likelihood &rarr; Complex Posteriors</p>
+
+      <div class="canvases-row">
+        <div class="canvas-panel">
+          <canvas id="prior-canvas"></canvas>
+        </div>
+        <div class="operator-symbol">&times;</div>
+        <div class="canvas-panel">
+          <canvas id="likelihood-canvas"></canvas>
+        </div>
+        <div class="operator-symbol">=</div>
+        <div class="canvas-panel">
+          <canvas id="posterior-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="formula-label">
+        <span class="formula-highlight">Posterior</span>
+        &prop;
+        <span class="formula-highlight">Prior</span>
+        &times;
+        <span class="formula-highlight">Likelihood</span>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #a78bfa;"></div>
+          <span>Prior</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #f472b6;"></div>
+          <span>Likelihood</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #4ade80;"></div>
+          <span>Posterior</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <h2>Parameters</h2>
+
+      <div class="control-group">
+        <label for="likelihood">Likelihood</label>
+        <select id="likelihood">
+          <option value="gaussian">Gaussian</option>
+          <option value="logistic">Logistic</option>
+          <option value="mixture">Mixture</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="reset">Reset</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Statistics</h3>
+        <div class="stats">
+          <div class="stats-row">
+            <span>Posterior Mode:</span>
+            <span id="stat-mode">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Multimodal:</span>
+            <span id="stat-multimodal">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Grid Points:</span>
+            <span id="stat-grid-points">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>About</h3>
+        <div class="stats" style="line-height: 1.5;">
+          <p style="margin-bottom: 8px;">
+            Even with a simple Gaussian prior, multiplying by a nonlinear
+            likelihood warps the posterior into something with no closed form.
+          </p>
+          <p>
+            <strong>Gaussian:</strong> conjugate, stays Gaussian.<br>
+            <strong>Logistic:</strong> asymmetric, skewed right.<br>
+            <strong>Mixture:</strong> bimodal, two bumps.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./shapes-viz.ts"></script>
+</body>
+</html>

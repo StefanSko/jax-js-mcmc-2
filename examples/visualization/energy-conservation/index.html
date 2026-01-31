@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Conservation - JAX-JS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    .nav-bar {
+      background: #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1a1a2e;
+      overflow-x: auto;
+    }
+    .nav-bar a {
+      color: #94a3b8;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav-bar a:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+    .nav-bar a.active { color: #e94560; font-weight: 600; }
+    .nav-bar .nav-sep { color: #334155; }
+
+    .container { display: flex; height: calc(100vh - 41px); }
+
+    /* Left: Contour + trajectory canvas (60%) */
+    .canvas-area {
+      flex: 3;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-width: 0;
+    }
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 400px;
+    }
+    #contour-canvas {
+      width: 100%;
+      height: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* Right: Energy plot + controls (40%) */
+    .right-panel {
+      flex: 2;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Energy plot (top right) */
+    .energy-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 20px 10px 0;
+      min-height: 200px;
+    }
+    .energy-wrapper {
+      flex: 1;
+      position: relative;
+    }
+    #energy-canvas {
+      width: 100%;
+      height: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* Controls panel (bottom right) */
+    .controls {
+      background: #0f3460;
+      padding: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      margin-right: 0;
+    }
+    .control-group { margin-bottom: 16px; }
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .control-group input[type="range"] { width: 100%; }
+    .control-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    .value-display {
+      text-align: right;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-secondary { background: #533483; color: white; }
+
+    /* Stats panel */
+    .stats {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .stats-row:last-child { margin-bottom: 0; }
+
+    /* Loading overlay */
+    .loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .loading-text { font-size: 16px; }
+    .loading-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #333;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-top: 12px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Classification badge */
+    .classification-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .classification-good { background: #4ade8033; color: #4ade80; }
+    .classification-warning { background: #fbbf2433; color: #fbbf24; }
+    .classification-divergent { background: #f8717133; color: #f87171; }
+
+    /* Title */
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <nav class="nav-bar">
+    <a href="../grid-approximation/">Grid Approximation</a>
+    <span class="nav-sep">|</span>
+    <a href="../posterior-shapes/">Posterior Shapes</a>
+    <span class="nav-sep">|</span>
+    <a href="../rwm-explorer/">RWM Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../energy-conservation/" class="active">Energy Conservation</a>
+    <span class="nav-sep">|</span>
+    <a href="../hmc-explorer/">HMC Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../">HMC + RWM Sandbox</a>
+  </nav>
+  <div class="container">
+    <div class="canvas-area">
+      <h1>Energy Conservation</h1>
+      <p class="subtitle">Why HMC works &mdash; and what breaks it</p>
+
+      <div class="canvas-wrapper">
+        <canvas id="contour-canvas"></canvas>
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          <span class="loading-text">Initializing JAX-JS...</span>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #4ade80;"></div>
+          <span>|&Delta;H| &lt; 0.1 (good)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #fbbf24;"></div>
+          <span>0.1 &le; |&Delta;H| &lt; 1.0 (warning)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #f87171;"></div>
+          <span>|&Delta;H| &ge; 1.0 (divergent)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #60a5fa;"></div>
+          <span>Start position</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="energy-area">
+        <h3>Hamiltonian H(q, p) per Leapfrog Step</h3>
+        <div class="energy-wrapper">
+          <canvas id="energy-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="controls">
+        <h2>Parameters</h2>
+
+        <div class="control-group">
+          <label for="distribution">Distribution</label>
+          <select id="distribution">
+            <option value="gaussian">2D Gaussian</option>
+            <option value="banana">Banana (Rosenbrock)</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="step-size">Step Size (&epsilon;)</label>
+          <input type="range" id="step-size" min="0.01" max="0.5" step="0.01" value="0.05">
+          <div class="value-display" id="step-size-value">0.05</div>
+        </div>
+
+        <div class="control-group">
+          <label for="num-steps">Integration Steps (L)</label>
+          <input type="range" id="num-steps" min="5" max="50" step="1" value="20">
+          <div class="value-display" id="num-steps-value">20</div>
+        </div>
+
+        <div class="control-group">
+          <div class="btn-group">
+            <button class="btn btn-primary" id="new-trajectory">New Trajectory</button>
+            <button class="btn btn-secondary" id="reset">Reset</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Trajectory Stats</h3>
+          <div class="stats">
+            <div class="stats-row">
+              <span>&Delta;H:</span>
+              <span id="stat-delta-h">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Accept Prob:</span>
+              <span id="stat-accept-prob">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Classification:</span>
+              <span id="stat-classification">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Decision:</span>
+              <span id="stat-decision">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./energy-viz.ts"></script>
+</body>
+</html>

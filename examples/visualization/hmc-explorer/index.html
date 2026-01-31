@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HMC Explorer - JAX-JS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    /* Navigation bar */
+    .nav-bar {
+      background: #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1a1a2e;
+      overflow-x: auto;
+    }
+    .nav-bar a {
+      color: #94a3b8;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav-bar a:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+    .nav-bar a.active { color: #e94560; font-weight: 600; }
+    .nav-bar .nav-sep { color: #334155; }
+
+    /* ---- Single mode layout ---- */
+    .container {
+      display: flex;
+      height: calc(100vh - 41px);
+    }
+
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-width: 0;
+    }
+
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 400px;
+    }
+
+    #hmc-canvas, #rwm-canvas {
+      width: 100%;
+      height: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* ---- Comparison mode layout ---- */
+    .comparison-container {
+      display: none;
+      flex-direction: column;
+      height: calc(100vh - 41px);
+    }
+
+    .comparison-canvases {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .comparison-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .comparison-panel h3 {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .comparison-canvas-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 200px;
+    }
+
+    .comparison-canvas-wrapper canvas {
+      width: 100%;
+      height: 100%;
+      background: #16213e;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .comparison-panel .legend {
+      margin-top: 8px;
+    }
+
+    .comparison-divider {
+      width: 2px;
+      background: #334155;
+      margin: 12px 0;
+    }
+
+    .comparison-bottom {
+      background: #0f3460;
+      padding: 16px 20px;
+      overflow-y: auto;
+      max-height: 280px;
+    }
+
+    .comparison-bottom .controls-inner {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .comparison-bottom .controls-inner .control-group {
+      margin-bottom: 0;
+    }
+
+    .comparison-stats-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .comparison-stats-block {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .comparison-stats-block h4 {
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #94a3b8;
+    }
+
+    /* ---- Controls panel (single mode) ---- */
+    .controls {
+      width: 280px;
+      background: #0f3460;
+      padding: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .control-group { margin-bottom: 20px; }
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .control-group input[type="range"] { width: 100%; }
+    .control-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    .value-display {
+      text-align: right;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-secondary { background: #533483; color: white; }
+
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      gap: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      background: #1a1a2e;
+      color: #94a3b8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active {
+      background: #e94560;
+      color: white;
+    }
+
+    /* Stats panel */
+    .stats {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      background: #1a1a2e;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .stats-row:last-child { margin-bottom: 0; }
+
+    /* Loading overlay */
+    .loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+    }
+    .loading-text { font-size: 16px; }
+    .loading-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #333;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-top: 12px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Checkbox styling */
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    /* Title */
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav-bar">
+    <a href="../grid-approximation/">Grid Approximation</a>
+    <span class="nav-sep">|</span>
+    <a href="../posterior-shapes/">Posterior Shapes</a>
+    <span class="nav-sep">|</span>
+    <a href="../rwm-explorer/">RWM Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../energy-conservation/">Energy Conservation</a>
+    <span class="nav-sep">|</span>
+    <a href="../hmc-explorer/" class="active">HMC Explorer</a>
+    <span class="nav-sep">|</span>
+    <a href="../">HMC + RWM Sandbox</a>
+  </nav>
+
+  <!-- ======== SINGLE MODE LAYOUT ======== -->
+  <div class="container" id="single-layout">
+    <div class="canvas-area">
+      <h1>HMC Explorer</h1>
+      <p class="subtitle">Hamiltonian Monte Carlo vs Random Walk</p>
+
+      <div class="canvas-wrapper">
+        <canvas id="hmc-canvas"></canvas>
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          <span class="loading-text">Initializing JAX-JS...</span>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #4ade80;"></div>
+          <span>Accepted</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #f87171;"></div>
+          <span>Rejected</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #60a5fa;"></div>
+          <span>Current</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls" id="single-controls">
+      <h2>Parameters</h2>
+
+      <div class="control-group">
+        <label>Mode</label>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-single-btn">Single</button>
+          <button class="mode-btn" id="mode-comparison-btn">Comparison</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="distribution">Distribution</label>
+        <select id="distribution">
+          <option value="gaussian">2D Gaussian</option>
+          <option value="correlated">Correlated Gaussian</option>
+          <option value="banana">Banana (Rosenbrock)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="step-size">Step Size (epsilon)</label>
+        <input type="range" id="step-size" min="0.01" max="0.5" step="0.01" value="0.15">
+        <div class="value-display" id="step-size-value">0.15</div>
+      </div>
+
+      <div class="control-group">
+        <label for="num-steps">Integration Steps (L) - HMC</label>
+        <input type="range" id="num-steps" min="1" max="30" step="1" value="10">
+        <div class="value-display" id="num-steps-value">10</div>
+      </div>
+
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-trajectory" checked>
+          Show Trajectory
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label for="speed">Animation Speed</label>
+        <input type="range" id="speed" min="50" max="1000" step="50" value="300">
+        <div class="value-display" id="speed-value">300ms</div>
+      </div>
+
+      <div class="control-group">
+        <div class="btn-group">
+          <button class="btn btn-primary" id="play-pause">Play</button>
+          <button class="btn btn-secondary" id="step-btn">Step</button>
+          <button class="btn btn-secondary" id="reset-btn">Reset</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>HMC Statistics</h3>
+        <div class="stats" id="hmc-stats">
+          <div class="stats-row">
+            <span>Samples:</span>
+            <span id="hmc-stat-samples">0</span>
+          </div>
+          <div class="stats-row">
+            <span>Acceptance:</span>
+            <span id="hmc-stat-acceptance">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean X:</span>
+            <span id="hmc-stat-mean-x">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean Y:</span>
+            <span id="hmc-stat-mean-y">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group hidden" id="rwm-stats-single-group">
+        <h3>RWM Statistics</h3>
+        <div class="stats" id="rwm-stats-single">
+          <div class="stats-row">
+            <span>Samples:</span>
+            <span id="rwm-stat-samples">0</span>
+          </div>
+          <div class="stats-row">
+            <span>Acceptance:</span>
+            <span id="rwm-stat-acceptance">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean X:</span>
+            <span id="rwm-stat-mean-x">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Mean Y:</span>
+            <span id="rwm-stat-mean-y">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== COMPARISON MODE LAYOUT ======== -->
+  <div class="comparison-container" id="comparison-layout">
+    <div class="comparison-canvases">
+      <div class="comparison-panel">
+        <h3>Random Walk Metropolis</h3>
+        <div class="comparison-canvas-wrapper">
+          <canvas id="rwm-canvas" style="display:none"></canvas>
+          <div class="loading hidden" id="loading-rwm">
+            <div class="loading-spinner"></div>
+            <span class="loading-text">Building RWM sampler...</span>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #4ade80;"></div>
+            <span>Accepted</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #f87171;"></div>
+            <span>Rejected</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #60a5fa;"></div>
+            <span>Current</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-divider"></div>
+
+      <div class="comparison-panel">
+        <h3>Hamiltonian Monte Carlo</h3>
+        <div class="comparison-canvas-wrapper">
+          <canvas id="hmc-canvas-cmp"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #4ade80;"></div>
+            <span>Accepted</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #f87171;"></div>
+            <span>Rejected</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #60a5fa;"></div>
+            <span>Current</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="comparison-bottom">
+      <div class="controls-inner">
+        <div class="control-group">
+          <label>Mode</label>
+          <div class="mode-toggle">
+            <button class="mode-btn" id="mode-single-btn-cmp">Single</button>
+            <button class="mode-btn active" id="mode-comparison-btn-cmp">Comparison</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label for="distribution-cmp">Distribution</label>
+          <select id="distribution-cmp">
+            <option value="gaussian">2D Gaussian</option>
+            <option value="correlated">Correlated Gaussian</option>
+            <option value="banana">Banana (Rosenbrock)</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="step-size-cmp">Step Size (epsilon)</label>
+          <input type="range" id="step-size-cmp" min="0.01" max="0.5" step="0.01" value="0.15">
+          <div class="value-display" id="step-size-value-cmp">0.15</div>
+        </div>
+
+        <div class="control-group">
+          <label for="num-steps-cmp">Integration Steps (L)</label>
+          <input type="range" id="num-steps-cmp" min="1" max="30" step="1" value="10">
+          <div class="value-display" id="num-steps-value-cmp">10</div>
+        </div>
+
+        <div class="control-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="show-trajectory-cmp" checked>
+            Show Trajectory
+          </label>
+        </div>
+
+        <div class="control-group">
+          <label for="speed-cmp">Speed</label>
+          <input type="range" id="speed-cmp" min="50" max="1000" step="50" value="300">
+          <div class="value-display" id="speed-value-cmp">300ms</div>
+        </div>
+
+        <div class="control-group">
+          <div class="btn-group">
+            <button class="btn btn-primary" id="play-pause-cmp">Play</button>
+            <button class="btn btn-secondary" id="step-btn-cmp">Step</button>
+            <button class="btn btn-secondary" id="reset-btn-cmp">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-stats-row" style="margin-top: 12px;">
+        <div class="comparison-stats-block">
+          <h4>RWM Statistics</h4>
+          <div class="stats">
+            <div class="stats-row">
+              <span>Samples:</span>
+              <span id="rwm-stat-samples-cmp">0</span>
+            </div>
+            <div class="stats-row">
+              <span>Acceptance:</span>
+              <span id="rwm-stat-acceptance-cmp">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Mean X:</span>
+              <span id="rwm-stat-mean-x-cmp">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Mean Y:</span>
+              <span id="rwm-stat-mean-y-cmp">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-stats-block">
+          <h4>HMC Statistics</h4>
+          <div class="stats">
+            <div class="stats-row">
+              <span>Samples:</span>
+              <span id="hmc-stat-samples-cmp">0</span>
+            </div>
+            <div class="stats-row">
+              <span>Acceptance:</span>
+              <span id="hmc-stat-acceptance-cmp">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Mean X:</span>
+              <span id="hmc-stat-mean-x-cmp">-</span>
+            </div>
+            <div class="stats-row">
+              <span>Mean Y:</span>
+              <span id="hmc-stat-mean-y-cmp">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./hmc-explorer-viz.ts"></script>
+</body>
+</html>

@@ -244,6 +244,16 @@ export default defineConfig({
   build: {
     outDir: '../../dist/visualization',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: 'examples/visualization/index.html',
+        grid: 'examples/visualization/grid-approximation/index.html',
+        posterior: 'examples/visualization/posterior-shapes/index.html',
+        rwm: 'examples/visualization/rwm-explorer/index.html',
+        energy: 'examples/visualization/energy-conservation/index.html',
+        hmc: 'examples/visualization/hmc-explorer/index.html',
+      },
+    },
   },
   // Base path for assets (use './' for relative paths, compatible with any hosting)
   base: './',
