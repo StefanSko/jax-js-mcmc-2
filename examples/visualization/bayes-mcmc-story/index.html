@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bayesian Update -> MCMC -> Causal Contrast</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2933;
+      --muted: #5f6c7b;
+      --accent: #1f8a70;
+      --accent-2: #f4a261;
+      --panel: rgba(255, 255, 255, 0.86);
+      --panel-border: rgba(31, 41, 51, 0.08);
+      --canvas-bg: #0f2a2b;
+      --canvas-fg: #eff5f4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Alegreya Sans", "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(244, 162, 97, 0.18), transparent 45%),
+        radial-gradient(circle at 80% 10%, rgba(31, 138, 112, 0.18), transparent 40%),
+        linear-gradient(135deg, #f7f2ea 0%, #e9f0f4 100%);
+    }
+
+    h1, h2, h3 {
+      font-family: "Iowan Old Style", "Palatino Linotype", "Georgia", serif;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 26px;
+      border-bottom: 1px solid rgba(31, 41, 51, 0.08);
+      backdrop-filter: blur(12px);
+      background: rgba(255, 255, 255, 0.7);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 13px;
+      margin-right: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      background: rgba(31, 138, 112, 0.12);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .nav-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+      gap: 24px;
+      padding: 24px;
+    }
+
+    .narrative {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .step-title {
+      font-size: 26px;
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .canvas-shell {
+      position: relative;
+      border-radius: 22px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      padding: 18px;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+    }
+
+    #viz-canvas {
+      width: 100%;
+      height: 520px;
+      border-radius: 16px;
+      background: var(--canvas-bg);
+      display: block;
+    }
+
+    .legend {
+      margin-top: 12px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+    }
+
+    .control-panel h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+    }
+
+    .control-group input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(31, 41, 51, 0.2);
+      font-size: 13px;
+    }
+
+    .control-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      transition: transform 0.1s ease, opacity 0.2s ease;
+    }
+
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-secondary { background: var(--accent-2); color: #1f2933; }
+    .btn-ghost { background: rgba(31, 41, 51, 0.08); color: var(--ink); }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .step-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(31, 41, 51, 0.08);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .step-pill.active {
+      background: rgba(31, 138, 112, 0.18);
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 18px;
+      border-radius: 18px;
+      background: rgba(15, 20, 26, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      color: #f8fafc;
+      font-size: 14px;
+      letter-spacing: 0.4px;
+    }
+
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #f4a261;
+      animation: spin 1s linear infinite;
+    }
+
+    .hidden { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      #viz-canvas { height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-title">Bayesian Updating -> MCMC</div>
+    <div class="nav-links">
+      <a href="../grid-approximation/">Grid Approximation</a>
+      <a href="../posterior-shapes/">Posterior Shapes</a>
+      <a href="../rwm-explorer/">RWM Explorer</a>
+      <a href="../energy-conservation/">Energy Conservation</a>
+      <a href="../hmc-explorer/">HMC Explorer</a>
+      <a href="../">HMC + RWM Sandbox</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <section>
+      <div class="narrative">
+        <div class="eyebrow" id="step-counter">Step 1 of 5</div>
+        <h1 class="step-title" id="step-title">Problem Setup</h1>
+        <p class="step-desc" id="step-desc"></p>
+        <div class="stepper" id="stepper"></div>
+        <div class="control-actions" style="margin-top: 12px;">
+          <button class="btn btn-ghost" id="prev-step">Back</button>
+          <button class="btn btn-primary" id="next-step">Next</button>
+        </div>
+      </div>
+
+      <div class="canvas-shell">
+        <canvas id="viz-canvas"></canvas>
+        <div class="legend" id="legend"></div>
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <div>Initializing JAX-JS...</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="controls">
+      <div class="control-panel" data-steps="0">
+        <h3>Data generator</h3>
+        <div class="control-group">
+          <label>Effect size <span id="effect-size-value"></span></label>
+          <input type="range" id="effect-size" min="-10" max="15" step="0.5" value="5">
+        </div>
+        <div class="control-group">
+          <label>Outlier rate <span id="outlier-rate-value"></span></label>
+          <input type="range" id="outlier-rate" min="0" max="0.3" step="0.02" value="0.1">
+        </div>
+        <div class="control-group">
+          <label>Sample size <span id="sample-size-value"></span></label>
+          <input type="range" id="sample-size" min="50" max="500" step="25" value="300">
+        </div>
+        <div class="control-actions">
+          <button class="btn btn-secondary" id="resample-data">Resample data</button>
+        </div>
+      </div>
+
+      <div class="control-panel hidden" data-steps="1,2">
+        <h3>Prior strength</h3>
+        <div class="control-group">
+          <label>Strength <span id="prior-strength-value"></span></label>
+          <input type="range" id="prior-strength" min="0.5" max="3" step="0.1" value="1">
+        </div>
+      </div>
+
+      <div class="control-panel hidden" data-steps="3">
+        <h3>Sampler settings</h3>
+        <div class="control-group">
+          <label>RWM step size <span id="rwm-step-value"></span></label>
+          <input type="range" id="rwm-step" min="0.1" max="5" step="0.1" value="1.5">
+        </div>
+        <div class="control-group">
+          <label>HMC step size <span id="hmc-step-value"></span></label>
+          <input type="range" id="hmc-step" min="0.02" max="0.4" step="0.01" value="0.12">
+        </div>
+        <div class="control-group">
+          <label>HMC integration steps <span id="hmc-steps-value"></span></label>
+          <input type="range" id="hmc-steps" min="5" max="40" step="1" value="20">
+        </div>
+        <div class="control-actions">
+          <button class="btn btn-primary" id="play-pause">Play</button>
+          <button class="btn btn-ghost" id="single-step">Step</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module" src="./story-viz.ts"></script>
+</body>
+</html>
