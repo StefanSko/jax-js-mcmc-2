@@ -181,8 +181,10 @@ function createJSLogdensity(dist: Distribution): (x: number, y: number) => numbe
  */
 function computeContours(): void {
   const jsLogdensity = createJSLogdensity(currentDistribution);
-  const { grid, xs, ys } = computeDensityGrid(jsLogdensity, currentDistribution.bounds, 60);
-  const levels = computeContourLevels(grid, 10);
+  const resolution = currentDistribution.name === 'Funnel' ? 100 : 60;
+  const levelCount = currentDistribution.name === 'Funnel' ? 12 : 10;
+  const { grid, xs, ys } = computeDensityGrid(jsLogdensity, currentDistribution.bounds, resolution);
+  const levels = computeContourLevels(grid, levelCount);
   contours = extractContours(grid, xs, ys, levels);
 }
 
