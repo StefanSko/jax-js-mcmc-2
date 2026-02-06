@@ -206,7 +206,7 @@ export function createFunnel(): Distribution {
 
       return logPv.add(logPxGivenV);
     },
-    bounds: { xMin: -8, xMax: 8, yMin: -20, yMax: 20 },
+    bounds: { xMin: -11, xMax: 5, yMin: -12, yMax: 12 },
     initialPosition: [vMode, 0],
     trueParams: {
       mean: [0, 0],

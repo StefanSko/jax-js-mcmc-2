@@ -43,6 +43,34 @@
       flex-direction: column;
       padding: 20px;
       min-width: 0;
+      gap: 16px;
+    }
+
+    .data-strip {
+      background: #0f3460;
+      border-radius: 8px;
+      padding: 10px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .data-strip-title {
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .data-strip canvas {
+      width: 100%;
+      height: 120px;
+      background: #16213e;
+      border-radius: 6px;
+      display: block;
+    }
+    .data-hint {
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
     }
 
     .canvases-row {
@@ -50,7 +78,7 @@
       display: flex;
       align-items: stretch;
       gap: 0;
-      min-height: 300px;
+      min-height: 260px;
     }
 
     .canvas-panel {
@@ -82,7 +110,6 @@
 
     .formula-label {
       text-align: center;
-      margin-top: 16px;
       font-size: 16px;
       color: #94a3b8;
       font-weight: 500;
@@ -93,28 +120,34 @@
       font-weight: 600;
     }
 
+    .predictive-row {
+      display: none;
+      gap: 12px;
+      flex-direction: column;
+    }
+    .predictive-caption {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
     /* Right: Control panel */
     .controls {
-      width: 280px;
+      width: 300px;
       background: #0f3460;
       padding: 20px;
       overflow-y: auto;
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
-    .control-group { margin-bottom: 20px; }
+    .control-group { display: flex; flex-direction: column; gap: 10px; }
     .control-group label {
       display: block;
-      margin-bottom: 8px;
       font-weight: 500;
       font-size: 14px;
-    }
-    .control-group select {
-      width: 100%;
-      padding: 8px;
-      border-radius: 4px;
-      border: none;
-      background: #1a1a2e;
-      color: #eee;
+      color: #e2e8f0;
     }
 
     /* Buttons */
@@ -124,14 +157,46 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
+      font-size: 13px;
+      font-weight: 600;
       transition: transform 0.1s, opacity 0.1s;
     }
     .btn:hover { opacity: 0.9; }
-    .btn:active { transform: scale(0.95); }
+    .btn:active { transform: scale(0.97); }
     .btn-primary { background: #e94560; color: white; }
     .btn-secondary { background: #533483; color: white; }
+    .btn-ghost { background: transparent; border: 1px solid #475569; color: #94a3b8; }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .segmented button {
+      background: #1a1a2e;
+      color: #94a3b8;
+      border: none;
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .segmented button.active {
+      background: #e94560;
+      color: #fff;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .toggle input { accent-color: #e94560; }
 
     /* Stats panel */
     .stats {
@@ -140,19 +205,18 @@
       background: #1a1a2e;
       padding: 12px;
       border-radius: 4px;
+      display: grid;
+      gap: 6px;
     }
     .stats-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 4px;
     }
-    .stats-row:last-child { margin-bottom: 0; }
 
     /* Legend */
     .legend {
       display: flex;
       gap: 15px;
-      margin-top: 12px;
       font-size: 12px;
       flex-wrap: wrap;
     }
@@ -160,14 +224,51 @@
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 
     /* Title */
-    h1 { font-size: 24px; margin-bottom: 4px; }
-    h2 { font-size: 16px; margin-bottom: 16px; color: #94a3b8; }
-    h3 { font-size: 14px; margin-bottom: 10px; color: #94a3b8; }
-    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 16px; color: #94a3b8; }
+    h3 { font-size: 14px; color: #94a3b8; }
+    .subtitle { color: #94a3b8; font-size: 14px; }
+
+    /* Step states */
+    body[data-step="likelihood"] .prior-panel,
+    body[data-step="likelihood"] .posterior-panel,
+    body[data-step="likelihood"] .operator-symbol,
+    body[data-step="likelihood"] .legend .legend-item.prior-only,
+    body[data-step="likelihood"] .legend .legend-item.posterior-only {
+      display: none;
+    }
+    body[data-step="likelihood"] .data-strip {
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2);
+    }
+    body[data-step="posterior"] .data-strip {
+      opacity: 0.7;
+    }
+    body[data-step="posterior"] .data-strip canvas {
+      height: 80px;
+    }
+    body[data-step="posterior"][data-edit="off"] .data-strip { pointer-events: none; }
+
+    body[data-predictive="on"] .predictive-row {
+      display: flex;
+    }
+    body[data-predictive="on"] .controls .toggle {
+      color: #e2e8f0;
+    }
+    body[data-predictive="off"] .legend .legend-item.predictive-only {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .container { flex-direction: column; height: auto; }
+      .controls { width: 100%; }
+      .canvases-row { min-height: 220px; }
+    }
   </style>
 </head>
-<body>
+<body data-step="likelihood" data-predictive="off" data-edit="off">
   <nav class="nav-bar">
+    <a href="../bayes-mcmc-story/">Bayes MCMC Story</a>
+    <span class="nav-sep">|</span>
     <a href="../grid-approximation/">Grid Approximation</a>
     <span class="nav-sep">|</span>
     <a href="../posterior-shapes/" class="active">Posterior Shapes</a>
@@ -182,33 +283,46 @@
   </nav>
   <div class="container">
     <div class="canvas-area">
-      <h1>Posterior Shapes</h1>
-      <p class="subtitle">Prior &times; Likelihood &rarr; Complex Posteriors</p>
+      <div>
+        <h1>Posterior Shapes</h1>
+        <p class="subtitle" id="subtitle">Build a likelihood from data, then see how it warps the posterior.</p>
+      </div>
+
+      <div class="data-strip">
+        <div class="data-strip-title">Data</div>
+        <canvas id="data-canvas"></canvas>
+        <div class="data-hint" id="data-hint">Click above the midline for y=1, below for y=0. Shift-click a point to remove.</div>
+      </div>
 
       <div class="canvases-row">
-        <div class="canvas-panel">
+        <div class="canvas-panel prior-panel">
           <canvas id="prior-canvas"></canvas>
         </div>
         <div class="operator-symbol">&times;</div>
-        <div class="canvas-panel">
+        <div class="canvas-panel likelihood-panel">
           <canvas id="likelihood-canvas"></canvas>
         </div>
         <div class="operator-symbol">=</div>
-        <div class="canvas-panel">
+        <div class="canvas-panel posterior-panel">
           <canvas id="posterior-canvas"></canvas>
         </div>
       </div>
 
-      <div class="formula-label">
-        <span class="formula-highlight">Posterior</span>
-        &prop;
-        <span class="formula-highlight">Prior</span>
-        &times;
+      <div class="formula-label" id="formula-label">
         <span class="formula-highlight">Likelihood</span>
+        from
+        <span class="formula-highlight">Data</span>
+      </div>
+
+      <div class="predictive-row">
+        <div class="canvas-panel predictive-panel">
+          <canvas id="predictive-canvas"></canvas>
+        </div>
+        <div class="predictive-caption">Posterior predictive: expected P(y=1 | x, data)</div>
       </div>
 
       <div class="legend">
-        <div class="legend-item">
+        <div class="legend-item prior-only">
           <div class="legend-dot" style="background: #a78bfa;"></div>
           <span>Prior</span>
         </div>
@@ -216,28 +330,69 @@
           <div class="legend-dot" style="background: #f472b6;"></div>
           <span>Likelihood</span>
         </div>
-        <div class="legend-item">
+        <div class="legend-item posterior-only">
           <div class="legend-dot" style="background: #4ade80;"></div>
           <span>Posterior</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #4ade80;"></div>
+          <span>y=1 data</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #f87171;"></div>
+          <span>y=0 data</span>
+        </div>
+        <div class="legend-item predictive-only">
+          <div class="legend-dot" style="background: #60a5fa;"></div>
+          <span>Predictive mean</span>
+        </div>
+        <div class="legend-item predictive-only">
+          <div class="legend-dot" style="background: rgba(96, 165, 250, 0.4);"></div>
+          <span>Predictive band (±1σ)</span>
         </div>
       </div>
     </div>
 
     <div class="controls">
-      <h2>Parameters</h2>
-
       <div class="control-group">
-        <label for="likelihood">Likelihood</label>
-        <select id="likelihood">
-          <option value="gaussian">Gaussian</option>
-          <option value="logistic">Logistic</option>
-          <option value="mixture">Mixture</option>
-        </select>
+        <h2>Flow</h2>
+        <div class="segmented">
+          <button id="step-likelihood" class="active">1. Build Likelihood</button>
+          <button id="step-posterior">2. Posterior + Predictive</button>
+        </div>
       </div>
 
       <div class="control-group">
+        <label class="toggle">
+          <input type="checkbox" id="toggle-predictive" />
+          Show Posterior Predictive
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h3>Data Controls</h3>
         <div class="btn-group">
-          <button class="btn btn-secondary" id="reset">Reset</button>
+          <button class="btn btn-secondary" id="reset-data">Reset Data</button>
+          <button class="btn btn-ghost" id="clear-data">Clear</button>
+        </div>
+        <div class="data-hint" style="text-align: left;">
+          Click in the data strip to add points. Shift-click removes the nearest point.
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="toggle">
+          <input type="checkbox" id="toggle-edit" />
+          Allow editing data in Step 2
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h3>Presets</h3>
+        <div class="btn-group">
+          <button class="btn btn-ghost" id="preset-separable">Separable</button>
+          <button class="btn btn-ghost" id="preset-overlap">Overlapping</button>
+          <button class="btn btn-ghost" id="preset-contradict">Contradictory</button>
         </div>
       </div>
 
@@ -249,8 +404,28 @@
             <span id="stat-mode">-</span>
           </div>
           <div class="stats-row">
-            <span>Multimodal:</span>
-            <span id="stat-multimodal">-</span>
+            <span>Posterior Mean:</span>
+            <span id="stat-mean">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Posterior SD:</span>
+            <span id="stat-std">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Data Points:</span>
+            <span id="stat-data-count">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Data Balance (y=1):</span>
+            <span id="stat-balance">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Data Entropy:</span>
+            <span id="stat-entropy">-</span>
+          </div>
+          <div class="stats-row">
+            <span>Decision Boundary:</span>
+            <span id="stat-boundary">-</span>
           </div>
           <div class="stats-row">
             <span>Grid Points:</span>
@@ -263,13 +438,12 @@
         <h3>About</h3>
         <div class="stats" style="line-height: 1.5;">
           <p style="margin-bottom: 8px;">
-            Even with a simple Gaussian prior, multiplying by a nonlinear
-            likelihood warps the posterior into something with no closed form.
+            The likelihood is built from binary data using a logistic model. The
+            prior is Gaussian. Multiply them to get the posterior.
           </p>
           <p>
-            <strong>Gaussian:</strong> conjugate, stays Gaussian.<br>
-            <strong>Logistic:</strong> asymmetric, skewed right.<br>
-            <strong>Mixture:</strong> bimodal, two bumps.
+            As you add data, the likelihood can skew or concentrate — which means
+            the posterior stops being a clean, closed-form Gaussian.
           </p>
         </div>
       </div>
