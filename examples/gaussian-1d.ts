@@ -45,3 +45,4 @@ console.log('1D Gaussian variance:', variance.toFixed(3));
 state.position.dispose();
 state.logdensity.dispose();
 state.logdensityGrad.dispose();
+sampler.dispose();

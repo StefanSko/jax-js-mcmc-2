@@ -62,5 +62,6 @@ console.log('Banana mean (approx):', [mean0.toFixed(3), mean1.toFixed(3)]);
 state.position.dispose();
 state.logdensity.dispose();
 state.logdensityGrad.dispose();
+sampler.dispose();
 maskX.dispose();
 maskY.dispose();

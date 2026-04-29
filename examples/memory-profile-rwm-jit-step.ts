@@ -42,3 +42,6 @@ logMemory('end');
 
 state.position.dispose();
 state.logdensity.dispose();
+sampler.dispose();
+
+logMemory('after dispose');

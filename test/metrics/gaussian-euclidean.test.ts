@@ -15,7 +15,7 @@ describe('Gaussian Euclidean Metric', () => {
 
     momentum.dispose();
     position.dispose();
-    inverseMassMatrix.dispose();
+    metric.dispose();
   });
 
   it('kineticEnergy computes 0.5 * p^T * M^{-1} * p', () => {
@@ -28,7 +28,7 @@ describe('Gaussian Euclidean Metric', () => {
     expect(energy).toBeAllclose(11.0);
 
     energy.dispose();
-    inverseMassMatrix.dispose();
+    metric.dispose();
   });
 
   it('kineticEnergyGrad computes M^{-1} * p', () => {
@@ -43,6 +43,6 @@ describe('Gaussian Euclidean Metric', () => {
 
     grad.dispose();
     expected.dispose();
-    inverseMassMatrix.dispose();
+    metric.dispose();
   });
 });
