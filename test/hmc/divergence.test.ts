@@ -30,6 +30,7 @@ describe('Divergence Detection', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 
   it('does not diverge with appropriate step size', () => {
@@ -69,6 +70,7 @@ describe('Divergence Detection', () => {
     state.position.dispose();
     state.logdensity.dispose();
     state.logdensityGrad.dispose();
+    sampler.dispose();
   });
 
   it('flags NaN energy as divergent', () => {
@@ -97,6 +99,7 @@ describe('Divergence Detection', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 
   it('rejects NaN energy proposals', () => {
@@ -125,6 +128,7 @@ describe('Divergence Detection', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 
   it('does not leak arrays on NaN energy path', () => {
@@ -155,5 +159,7 @@ describe('Divergence Detection', () => {
     expect(newState.position.refCount).toBe(0);
     expect(info.isDivergent.refCount).toBe(0);
     expect(info.isAccepted.refCount).toBe(0);
+
+    sampler.dispose();
   });
 });

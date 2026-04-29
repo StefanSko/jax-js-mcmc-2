@@ -56,6 +56,7 @@ describe('HMC Kernel', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    metric.dispose();
     config.inverseMassMatrix.dispose();
   });
 });

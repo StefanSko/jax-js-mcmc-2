@@ -12,6 +12,8 @@ describe('RWM Builder', () => {
 
     expect(sampler.init).toBeDefined();
     expect(sampler.step).toBeDefined();
+
+    sampler.dispose();
   });
 
   it('builder is immutable', () => {
@@ -32,6 +34,7 @@ describe('RWM Builder', () => {
 
     state.position.dispose();
     state.logdensity.dispose();
+    sampler.dispose();
   });
 
   it('step runs without error', () => {
@@ -49,6 +52,7 @@ describe('RWM Builder', () => {
     info.acceptanceProb.dispose();
     info.isAccepted.dispose();
     info.proposedPosition.dispose();
+    sampler.dispose();
   });
 
   it('jitStep path runs without error', () => {
@@ -66,6 +70,7 @@ describe('RWM Builder', () => {
     info.acceptanceProb.dispose();
     info.isAccepted.dispose();
     info.proposedPosition.dispose();
+    sampler.dispose();
   });
 
   it('throws if required config is missing', () => {

@@ -62,5 +62,6 @@ describe('HMC Stationary Distribution', () => {
     state.position.dispose();
     state.logdensity.dispose();
     state.logdensityGrad.dispose();
+    sampler.dispose();
   });
 });

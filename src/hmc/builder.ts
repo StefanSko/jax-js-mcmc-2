@@ -7,6 +7,7 @@ import { createVelocityVerlet } from '../integrators/velocity-verlet';
 export interface HMCSampler {
   init: (position: Array) => HMCState;
   step: (key: Array, state: HMCState) => [HMCState, HMCInfo];
+  dispose: () => void;
 }
 
 interface PartialConfig {
@@ -61,7 +62,8 @@ export class HMCBuilder {
 
   build(): HMCSampler {
     const fullConfig = this.validateAndFillDefaults();
-    const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix.ref);
+    const { numIntegrationSteps } = fullConfig;
+    const metric = createGaussianEuclidean(fullConfig.inverseMassMatrix);
     const integrator = createVelocityVerlet(
       this.logdensityFn,
       metric.kineticEnergy
@@ -88,18 +90,23 @@ export class HMCBuilder {
         },
       ];
     };
+    type OwnedFunction<F extends (...args: never[]) => unknown> = F & {
+      dispose: () => void;
+    };
     type Jit = <Args extends unknown[], R>(
       fn: (...args: Args) => R
-    ) => (...args: Args) => R;
+    ) => OwnedFunction<(...args: Args) => R>;
     const jitKernel = jit as unknown as Jit;
+    let stepJit: OwnedFunction<typeof stepArrays> | undefined;
     const step = fullConfig.jitStep
       ? (() => {
-          const stepJit = jitKernel(stepArrays);
+          const compiledStep = jitKernel(stepArrays);
+          stepJit = compiledStep;
           return (key: Array, state: HMCState): [HMCState, HMCInfo] => {
-            const [newState, info] = stepJit(key, state);
+            const [newState, info] = compiledStep(key, state);
             return [
               newState,
-              { ...info, numIntegrationSteps: fullConfig.numIntegrationSteps },
+              { ...info, numIntegrationSteps },
             ];
           };
         })()
@@ -114,7 +121,17 @@ export class HMCBuilder {
       };
     };
 
-    return { init, step };
+    let disposed = false;
+    const dispose = (): void => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      stepJit?.dispose();
+      metric.dispose();
+    };
+
+    return { init, step, dispose };
   }
 
   private validateAndFillDefaults(): HMCConfig & { jitStep: boolean } {

@@ -58,6 +58,7 @@ describe('HMC kernel refcount', () => {
     newState.logdensity.dispose();
     newState.logdensityGrad.dispose();
     disposeInfo(info);
+    metric.dispose();
     config.inverseMassMatrix.dispose();
   });
 
@@ -79,6 +80,7 @@ describe('HMC kernel refcount', () => {
     newState.logdensity.dispose();
     newState.logdensityGrad.dispose();
     disposeInfo(info);
+    metric.dispose();
     config.inverseMassMatrix.dispose();
   });
 
@@ -107,6 +109,7 @@ describe('HMC kernel refcount', () => {
     state.position.dispose();
     state.logdensity.dispose();
     state.logdensityGrad.dispose();
+    metric.dispose();
     config.inverseMassMatrix.dispose();
   });
 });

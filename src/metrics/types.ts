@@ -4,4 +4,5 @@ export interface Metric {
   sampleMomentum: (key: Array, position: Array) => Array;
   kineticEnergy: (momentum: Array) => Array;
   kineticEnergyGrad: (momentum: Array) => Array;
+  dispose: () => void;
 }

@@ -5,6 +5,7 @@ import { createRWMKernel } from './kernel';
 export interface RWMSampler {
   init: (position: Array) => RWMState;
   step: (key: Array, state: RWMState) => [RWMState, RWMInfo];
+  dispose: () => void;
 }
 
 interface PartialConfig {
@@ -36,11 +37,15 @@ export class RWMBuilder {
       logdensityFn: this.logdensityFn,
       stepSize: fullConfig.stepSize,
     });
+    type OwnedFunction<F extends (...args: never[]) => unknown> = F & {
+      dispose: () => void;
+    };
     type Jit = <Args extends unknown[], R>(
       fn: (...args: Args) => R
-    ) => (...args: Args) => R;
+    ) => OwnedFunction<(...args: Args) => R>;
     const jitKernel = jit as unknown as Jit;
-    const step = fullConfig.jitStep ? jitKernel(kernel) : kernel;
+    const stepJit = fullConfig.jitStep ? jitKernel(kernel) : undefined;
+    const step = stepJit ?? kernel;
 
     const init = (position: Array): RWMState => {
       return {
@@ -49,7 +54,16 @@ export class RWMBuilder {
       };
     };
 
-    return { init, step };
+    let disposed = false;
+    const dispose = (): void => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      stepJit?.dispose();
+    };
+
+    return { init, step, dispose };
   }
 
   private validateAndFillDefaults(): Pick<RWMConfig, 'stepSize'> & { jitStep: boolean } {

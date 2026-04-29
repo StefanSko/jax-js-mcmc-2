@@ -44,5 +44,6 @@ describe('RWM Stationary Distribution', () => {
 
     state.position.dispose();
     state.logdensity.dispose();
+    sampler.dispose();
   });
 });

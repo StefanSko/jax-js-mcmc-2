@@ -56,3 +56,4 @@ console.log('2D Gaussian variance:', [var0.toFixed(3), var1.toFixed(3)]);
 state.position.dispose();
 state.logdensity.dispose();
 state.logdensityGrad.dispose();
+sampler.dispose();

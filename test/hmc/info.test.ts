@@ -33,5 +33,6 @@ describe('HMC Info', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 });

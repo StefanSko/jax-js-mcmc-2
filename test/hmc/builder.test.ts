@@ -16,6 +16,8 @@ describe('HMC Builder', () => {
 
     expect(sampler.init).toBeDefined();
     expect(sampler.step).toBeDefined();
+
+    sampler.dispose();
   });
 
   it('builder is immutable', () => {
@@ -42,6 +44,7 @@ describe('HMC Builder', () => {
     state.position.dispose();
     state.logdensity.dispose();
     state.logdensityGrad.dispose();
+    sampler.dispose();
   });
 
   it('step runs without error', () => {
@@ -66,6 +69,7 @@ describe('HMC Builder', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 
   it('does not expose valueAndGrad (API kept minimal)', () => {
@@ -96,6 +100,7 @@ describe('HMC Builder', () => {
     info.isAccepted.dispose();
     info.isDivergent.dispose();
     info.energy.dispose();
+    sampler.dispose();
   });
 
   it('throws if required config is missing', () => {
